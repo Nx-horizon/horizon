@@ -26,13 +26,13 @@ fn hmac(key: &[u8], message: &[u8]) -> Vec<u8> {
     let inner_input: Vec<u8> = ipad.into_iter().chain(message.iter().cloned()).collect();
 
     // Appliquer le hachage interne (SHA-512)
-    let inner_hash = Sha3_512::digest(&inner_input);
+    let inner_hash = Sha3_512::digest(inner_input);
 
     // Concaténer le masque externe avec le haché interne
     let outer_input: Vec<u8> = opad.into_iter().chain(inner_hash.iter().cloned()).collect();
 
     // Appliquer le hachage externe (SHA-256) pour obtenir la sortie finale
-    Sha3_512::digest(&outer_input).to_vec()
+    Sha3_512::digest(outer_input).to_vec()
 }
 
 // Fonction PBKDF2
