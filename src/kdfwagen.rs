@@ -2,7 +2,6 @@ use sha3::{Sha3_512, Digest};
 
 fn hmac(key: &[u8], message: &[u8]) -> Vec<u8> {
     const BLOCK_SIZE: usize = 128; // Taille du bloc pour SHA-512
-    const HASH_SIZE: usize = 64;   // Taille du haché pour SHA-512
 
 
     // Ajuster la clé si elle est trop longue
