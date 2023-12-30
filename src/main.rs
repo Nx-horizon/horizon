@@ -10,6 +10,7 @@ use std::collections::HashMap;
 use std::hash::{Hash, Hasher};
 use rand::rngs::OsRng;
 use rayon::prelude::*;
+use crate::systemtrayerror::SystemTrayError;
 
 //v 0.3.91
 
@@ -71,7 +72,6 @@ fn transpose(word: &str, shift: usize) -> Option<String> {
 pub fn generate_key() -> String {
     let mut hasher = Sha3_512::new();
 
-
     match get_mac_address() {
         Ok(Some(mac_address)) => {
             let mac_address_str = mac_address.to_string();
@@ -79,7 +79,6 @@ pub fn generate_key() -> String {
         },
         Ok(None) => println!("No MAC address found."),
         Err(e) => println!("Error: {}", e),
-
 
     }
 
@@ -122,10 +121,10 @@ fn rotate_right(bytes: Vec<u8>, count: u32) -> Vec<u8> {
     bytes.into_iter().map(|b| b.rotate_right(count)).collect()
 }
 
-fn generate_key2(seed: &str) -> Result<String, &'static str> {
+fn generate_key2(seed: &str) -> Result<String, SystemTrayError> {
 
     if seed.len() < 10 {
-        return Err("Le seed doit avoir au moins 10 caractères");
+        return Err(SystemTrayError::new(4));
     }
 
 
@@ -137,9 +136,10 @@ fn generate_key2(seed: &str) -> Result<String, &'static str> {
 
     Ok(format!("{:x}", hash_result))
 }
-fn concat_4096(s: &str) -> Result<String, &'static str> {
+
+fn concat_4096(s: &str) -> Result<String, SystemTrayError> {
     if s.len() % 8 != 0 {
-        return Err("La longueur du str doit être divisible par 8");
+        return Err(SystemTrayError::new(7));
     }
 
     let chunk_size = s.len() / 8;
@@ -175,7 +175,7 @@ fn insert_random_stars(word: &str) -> String {
     word_chars.into_iter().collect()
 }
 
-pub(crate) fn encrypt(plain_text: &str, key1: &str, key2: &str, characters: &str, password: &str) -> Result<Vec<u8>, &'static str> {
+pub(crate) fn encrypt(plain_text: &str, key1: &str, key2: &str, characters: &str, password: &str) -> Result<Vec<u8>, SystemTrayError> {
     let plain_text_with_stars = insert_random_stars(plain_text);
     let table = table2(characters, (addition_chiffres(key2) * addition_chiffres(key1)) as u64);
     let mut char_positions = HashMap::with_capacity(characters.len());
@@ -186,22 +186,22 @@ pub(crate) fn encrypt(plain_text: &str, key1: &str, key2: &str, characters: &str
     let mut cipher_text = String::with_capacity(plain_text_with_stars.len());
 
     for (i, c) in plain_text_with_stars.chars().enumerate() {
-        let table_2d = key1.chars().nth(i % key1.len()).ok_or("Key1 is too short")? as usize % characters.len();
-        let row = key2.chars().nth(i % key2.len()).ok_or("Key2 is too short")? as usize % characters.len();
+        let table_2d = key1.chars().nth(i % key1.len()).ok_or(SystemTrayError::new(5))? as usize % characters.len();
+        let row = key2.chars().nth(i % key2.len()).ok_or(SystemTrayError::new(5))? as usize % characters.len();
 
-        let col = *char_positions.get(&c).ok_or("Character not found in character set")? % characters.len();
+        let col = *char_positions.get(&c).ok_or(SystemTrayError::new(6))? % characters.len();
 
         if table_2d < table.len() && row < table[table_2d].len() && col < table[table_2d][row].len() {
             cipher_text.push(table[table_2d][row][col]);
         } else {
-            return Err("Index out of bounds");
+            return Err(SystemTrayError::new(1));
         }
     }
     let xor = xor_crypt(kdf(password, 300).as_bytes(), cipher_text.as_bytes());
 
     Ok(xor)
 }
-pub(crate) fn decrypt(cipher_text: Vec<u8>, key1: &str, key2: &str, characters: &str, password: &str) -> Result<String, &'static str> {
+pub(crate) fn decrypt(cipher_text: Vec<u8>, key1: &str, key2: &str, characters: &str, password: &str) -> Result<String, SystemTrayError> {
     let table =  table2(characters, (addition_chiffres(key2) * addition_chiffres(key1)) as u64);
     let mut char_positions = HashMap::with_capacity(characters.len());
     characters.chars().enumerate().for_each(|(i, c)| {
@@ -213,20 +213,20 @@ pub(crate) fn decrypt(cipher_text: Vec<u8>, key1: &str, key2: &str, characters: 
 
     let mut plain_text = String::with_capacity(cipher_text.len());
     for (i, c) in cipher_text.chars().enumerate() {
-        let table_2d = key1.chars().nth(i % key1.len()).ok_or("Key1 is too short")? as usize % characters.len();
-        let row = key2.chars().nth(i % key2.len()).ok_or("Key2 is too short")? as usize % characters.len();
+        let table_2d = key1.chars().nth(i % key1.len()).ok_or(SystemTrayError::new(5))? as usize % characters.len();
+        let row = key2.chars().nth(i % key2.len()).ok_or(SystemTrayError::new(5))? as usize % characters.len();
 
         if table_2d < table.len() && row < table[table_2d].len() {
-            let col = table[table_2d][row].iter().position(|&x| x == c).ok_or("Character not found in table")?;
+            let col = table[table_2d][row].iter().position(|&x| x == c).ok_or(SystemTrayError::new(6))?;
             let original_col = (col + characters.len()) % characters.len();
 
-            plain_text.push(characters.chars().nth(original_col).ok_or("Error in character set")?);
+            plain_text.push(characters.chars().nth(original_col).ok_or(SystemTrayError::new(6))?);
         } else {
-            return Err("Index out of bounds");
+            return Err(SystemTrayError::new(1));
         }
     }
 
-    Ok(plain_text.replace("^", ""))
+    Ok(plain_text.replace('^', ""))
 }
 
 fn xor_crypt(key: &[u8], data: &[u8]) -> Vec<u8> {
@@ -309,6 +309,8 @@ mod tests {
 
         assert_eq!(actual_table[0][0][0], '/');
 
+        let test2 = table2(characters, 123456789);
+        assert_ne!(actual_table, test2);
     }
     #[test]
     fn test_xor_crypt() {
@@ -367,6 +369,15 @@ mod tests {
         // Vérifiez ici les propriétés spécifiques de votre table.
         // Par exemple, vous pouvez vérifier que la taille de la table est correcte.
         assert_eq!(actual_table.len(), characters.len());
+    }
+
+    #[test]
+    fn test_transpose() {
+        let word = "HelloWorld";
+        let shift = 3;
+        let expected = "rldHWolelo";
+        let result = transpose(word, shift);
+        assert_eq!(result, Some(expected.to_string()));
     }
 
 }
