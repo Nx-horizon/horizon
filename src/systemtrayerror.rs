@@ -18,6 +18,7 @@ impl SystemTrayError {
             4 => "Seed too short (10 char)".to_string(),
             5 => "Key is too short".to_string(),
             6 => "Character not found in character set".to_string(),
+            7 => "Error when dividing by 8".to_string(),
             _ => format!("Unknown error with code {}", code),
         };
 
