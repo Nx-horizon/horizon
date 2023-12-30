@@ -226,7 +226,7 @@ pub(crate) fn decrypt(cipher_text: Vec<u8>, key1: &str, key2: &str, characters: 
         }
     }
 
-    Ok(plain_text.replace("^", ""))
+    Ok(plain_text.replace('^', ""))
 }
 
 fn xor_crypt(key: &[u8], data: &[u8]) -> Vec<u8> {
@@ -309,6 +309,8 @@ mod tests {
 
         assert_eq!(actual_table[0][0][0], '/');
 
+        let test2 = table2(characters, 123456789);
+        assert_ne!(actual_table, test2);
     }
     #[test]
     fn test_xor_crypt() {
