@@ -36,9 +36,10 @@ fn hmac(key: &[u8], message: &[u8]) -> Vec<u8> {
 }
 
 // Fonction PBKDF2
-fn kdfwagen(password: &[u8], salt: &[u8], iterations: usize) -> Vec<u8> {
+pub(crate) fn kdfwagen(password: &[u8], salt: &[u8], iterations: usize) -> Vec<u8> {
     const PRF_OUTPUT_SIZE: usize = 64; // Taille de sortie de la fonction de hachage utilisée (SHA-512)
     const KEY_LENGTH: usize = 512; // Taille de la clé de sortie
+
 
     let mut result = Vec::new();
     let mut block_count = (KEY_LENGTH + PRF_OUTPUT_SIZE - 1) / PRF_OUTPUT_SIZE;

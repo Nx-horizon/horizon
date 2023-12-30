@@ -11,6 +11,7 @@ use std::collections::HashMap;
 use std::hash::{Hash, Hasher};
 use rand::rngs::OsRng;
 use rayon::prelude::*;
+use crate::kdfwagen::kdfwagen;
 use crate::systemtrayerror::SystemTrayError;
 
 //v 0.3.91
@@ -71,19 +72,23 @@ fn transpose(word: &str, shift: usize) -> Option<String> {
 }
 
 pub fn generate_key() -> String {
-    let mut hasher = Sha3_512::new();
-
-    match get_mac_address() {
+    let returner = match get_mac_address() {
         Ok(Some(mac_address)) => {
             let mac_address_str = mac_address.to_string();
-            hasher.update(kdf(&mac_address_str, addition_chiffres(&mac_address_str)*10));
+            let returner = kdfwagen(mac_address_str.as_bytes(), b"legrandblond", 30);
+            hex::encode(returner)
         },
-        Ok(None) => println!("No MAC address found."),
-        Err(e) => println!("Error: {}", e),
+        Ok(None) => {
+            println!("No MAC address found.");
+            String::new()
+        },
+        Err(e) => {
+            println!("Error: {}", e);
+            String::new()
+        },
+    };
 
-    }
-
-    format!("{:x}", hasher.finalize())
+    returner
 }
 
 fn addition_chiffres(adresse_mac: &str) -> u32 {
@@ -123,42 +128,15 @@ fn rotate_right(bytes: Vec<u8>, count: u32) -> Vec<u8> {
 }
 
 fn generate_key2(seed: &str) -> Result<String, SystemTrayError> {
-
     if seed.len() < 10 {
         return Err(SystemTrayError::new(4));
     }
 
+    let seed = kdfwagen::kdfwagen(seed.as_bytes(), b"legrandblond", 30); //change salt by unique pc id
 
-    let seed = kdf(seed, 300);
-    let mut hasher = Sha3_512::new();
-    hasher.update(seed);
-
-    let hash_result = hasher.finalize();
-
-    Ok(format!("{:x}", hash_result))
+    Ok(hex::encode(seed))
 }
 
-fn concat_4096(s: &str) -> Result<String, SystemTrayError> {
-    if s.len() % 8 != 0 {
-        return Err(SystemTrayError::new(7));
-    }
-
-    let chunk_size = s.len() / 8;
-    let mut result = String::new();
-
-    for i in 0..8 {
-        let start = i * chunk_size;
-        let end = start + chunk_size;
-        let chunk = &s[start..end];
-
-        let mut hasher = Sha3_512::new();
-        hasher.update(chunk);
-        let hash = hasher.finalize();
-        result.push_str(&format!("{:x}", hash));
-    }
-
-    Ok(result)
-}
 
 // Fonction pour empoisonner à des positions aléatoires dans le mot
 fn insert_random_stars(word: &str) -> String {
@@ -198,7 +176,7 @@ pub(crate) fn encrypt(plain_text: &str, key1: &str, key2: &str, characters: &str
             return Err(SystemTrayError::new(1));
         }
     }
-    let xor = xor_crypt(kdf(password, 300).as_bytes(), cipher_text.as_bytes());
+    let xor = xor_crypt(&kdfwagen(password.as_bytes(), b"legrandblond", 30), cipher_text.as_bytes());
 
     Ok(xor)
 }
@@ -209,7 +187,7 @@ pub(crate) fn decrypt(cipher_text: Vec<u8>, key1: &str, key2: &str, characters: 
         char_positions.insert(c, i);
     });
 
-    let xor = xor_crypt(kdf(password, 300).as_bytes(), &cipher_text);
+    let xor = xor_crypt(&kdfwagen(password.as_bytes(), b"legrandblond", 30), &cipher_text);
     let cipher_text = String::from_utf8_lossy(&xor).into_owned();
 
     let mut plain_text = String::with_capacity(cipher_text.len());
@@ -240,8 +218,7 @@ fn main() {
 
     let characters = "15^,&X_.w4Uek[?zv>|LOi9;83tgVxCdsrGHj#Ky+<hPQSR@nMDB2Z{cfI0l6-F}7EW$%Ybq'Jo=~:\"](Aa/p!uTN)*`m ";
 
-
-    let result = concat_4096(&generate_key()).unwrap();
+    let result = generate_key();
 
     if plain_text.len() > result.len() {
         println!("Erreur : la longueur du message est supérieure à la longueur de la clé");
@@ -260,7 +237,6 @@ fn main() {
 
     };
 
-    let globalkey = concat_4096(&globalkey).unwrap();
 
     println!("seed value {}", addition_chiffres(&result) * addition_chiffres(&globalkey));
     println!("characters length {}", characters.len());
