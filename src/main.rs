@@ -1,5 +1,6 @@
 mod systemtrayerror;
 mod kdfwagen;
+mod cryptex;
 
 use std::collections::hash_map::DefaultHasher;
 use rand::Rng;
@@ -574,23 +575,23 @@ mod tests {
 
     #[test]
     fn test_table3() {
-        let characters: &str = "abcdeéà";
+        let characters = "15^,&X_.w4Uek[?zv>|LOi9;83tgVxCdsrGHj#Ky+<hPQSR@nMDB2Z{cfI0l6-F}7EW$%Ybq'Jo=~:\"](Aa/p!uTN)*`éèàm ";
+
+
         let seed: u64 = 1234567890;
 
-        let actual_table = table3(characters, seed);
+        println!("String 1 en bytes: {:?}", characters.as_bytes());
 
-        // Convert characters to bytes for comparison
-        let characters: Vec<u8> = characters.bytes().collect();
+        let actual_table = table3(&characters, seed);
 
-        // Check specific properties of your table here.
-        // For example, you can check that the size of the table is correct.
-        assert_eq!(actual_table.len(), characters.len());
+        let global: Vec<u8> = characters.bytes().collect();
 
-        // Check that all expected values are in the table
-        for i in 0..characters.len() {
-            for j in 0..characters.len() {
-                for k in 0..characters.len() {
-                    assert!(characters.contains(&actual_table[i][j][k]));
+        assert_eq!(actual_table.len(), global.len());
+
+        for i in 0..global.len() {
+            for j in 0..global.len() {
+                for k in 0..global.len() {
+                    assert!(global.contains(&actual_table[i][j][k]));
                 }
             }
         }
