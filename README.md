@@ -1,4 +1,4 @@
-# Projet de Cryptographie
+# Horizon-CryptoGraphie
 
 ![Logo](./proxy-image.png)
 
