@@ -49,6 +49,28 @@ fn table3(characters: &[u8], seed: u64) -> Vec<Vec<Vec<u8>>> {
     }).collect::<Vec<Vec<Vec<u8>>>>()
 }
 
+/// Generate stable indices for transposition based on a specified shift.
+///
+/// This function generates a vector of indices that can be used for stable transposition
+/// of characters in a word. The stability is achieved by hashing each index and sorting
+/// the indices based on their hash values. The shift value determines the number of positions
+/// each index is shifted cyclically after sorting.
+///
+/// # Arguments
+///
+/// * `word_len` - The length of the word for which indices are generated.
+/// * `shift` - The number of positions to shift the sorted indices cyclically.
+///
+/// # Returns
+///
+/// * `Vec<usize>` - A vector of stable indices suitable for transposition.
+///
+/// # Examples
+///
+/// ```
+/// let indices = stable_indices(5, 2);
+/// assert_eq!(indices, vec![0, 3, 1, 4, 2]);
+/// ```
 fn stable_indices(word_len: usize, shift: usize) -> Vec<usize> {
     let mut indices: Vec<usize> = (0..word_len).collect();
 
@@ -86,6 +108,13 @@ fn stable_indices(word_len: usize, shift: usize) -> Vec<usize> {
 ///
 /// * `Some(String)` - A new string representing the transposed word.
 /// * `None` - If the word is empty or if the shift value is out of bounds.
+///
+/// # Examples
+///
+/// ```
+/// let result = transpose("hello", 2);
+/// assert_eq!(result, Some("llohe".to_string()));
+/// ```
 fn transpose(word: &str, shift: usize) -> Option<String> {
     let word_chars: Vec<char> = word.chars().collect();
     let word_len = word_chars.len();
