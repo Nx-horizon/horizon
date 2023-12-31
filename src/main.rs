@@ -76,6 +76,10 @@ fn table3(characters: &str, seed: u64) -> Vec<Vec<Vec<u8>>> {
     }).collect::<Vec<Vec<Vec<u8>>>>()
 }
 
+fn get_salt() -> String {
+    whoami::username() + &whoami::hostname() + &whoami::distro()
+}
+
 /// Generate stable indices for transposition based on a specified shift.
 ///
 /// This function generates a vector of indices that can be used for stable transposition
@@ -174,7 +178,7 @@ pub fn generate_key() -> String {
     let returner = match get_mac_address() {
         Ok(Some(mac_address)) => {
             let mac_address_str = mac_address.to_string();
-            let returner = kdfwagen(mac_address_str.as_bytes(), b"legrandblond", 30);
+            let returner = kdfwagen(mac_address_str.as_bytes(), get_salt().as_bytes(), 30);
             hex::encode(returner)
         },
         Ok(None) => {
@@ -245,7 +249,7 @@ fn generate_key2(seed: &str) -> Result<String, SystemTrayError> {
         return Err(SystemTrayError::new(4));
     }
 
-    let seed = kdfwagen::kdfwagen(seed.as_bytes(), b"legrandblond", 30); //change salt by unique pc id
+    let seed = kdfwagen::kdfwagen(seed.as_bytes(), get_salt().as_bytes(), 30); //change salt by unique pc id
 
     Ok(hex::encode(seed))
 }
@@ -341,7 +345,7 @@ pub(crate) fn encrypt(plain_text: &str, key1: &str, key2: &str, characters: &str
             return Err(SystemTrayError::new(1));
         }
     }
-    let xor = xor_crypt(&kdfwagen(password.as_bytes(), b"legrandblond", 30), cipher_text.as_bytes());
+    let xor = xor_crypt(&kdfwagen(password.as_bytes(), get_salt().as_bytes(), 30), cipher_text.as_bytes());
 
     Ok(xor)
 }
@@ -389,7 +393,7 @@ pub(crate) fn decrypt(cipher_text: Vec<u8>, key1: &str, key2: &str, characters: 
         char_positions.insert(c, i);
     });
 
-    let xor = xor_crypt(&kdfwagen(password.as_bytes(), b"legrandblond", 30), &cipher_text);
+    let xor = xor_crypt(&kdfwagen(password.as_bytes(), get_salt().as_bytes(), 30), &cipher_text);
     let cipher_text = String::from_utf8_lossy(&xor).into_owned();
 
     let mut plain_text = String::with_capacity(cipher_text.len());
