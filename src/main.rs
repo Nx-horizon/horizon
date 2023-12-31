@@ -41,25 +41,7 @@ fn table2(characters: &str, seed: u64) -> Vec<Vec<Vec<char>>> {
         }).collect::<Vec<Vec<char>>>()
     }).collect::<Vec<Vec<Vec<char>>>>()
 }
-/// Generates a 3D table of unsigned 8-bit integers based on the input character set and a provided seed.
-///
-/// # Parameters
-///
-/// - `characters`: A slice of unsigned 8-bit integers representing the set of characters used to populate the table.
-/// - `seed`: A 64-bit unsigned integer serving as the seed for the randomization process.
-///
-/// # Returns
-///
-/// Returns a 3D vector representing the table of unsigned 8-bit integers, where each dimension is shuffled independently.
-///
-/// # Examples
-///
-/// ```rust
-/// let characters = vec![/* vector of u8 representing characters */];
-/// let seed = 42;
-/// let table = table3(&characters, seed);
-/// println!("{:?}", table);
-/// ```
+
 
 fn get_salt() -> String {
     whoami::username() + &whoami::hostname() + &whoami::distro()
