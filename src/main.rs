@@ -3,7 +3,6 @@ mod kdfwagen;
 
 use std::collections::hash_map::DefaultHasher;
 use rand::Rng;
-use sha3::{Digest};
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
 use rand::prelude::*;
 use mac_address::get_mac_address;
@@ -15,7 +14,7 @@ use crate::kdfwagen::kdfwagen;
 use crate::systemtrayerror::SystemTrayError;
 
 //v 0.3.91
-
+/// Generates a 3D table of char based on the input character set and a provided seed.
 ///
 /// # Parameters
 ///
@@ -60,7 +59,8 @@ fn table2(characters: &str, seed: u64) -> Vec<Vec<Vec<char>>> {
 /// let table = table3(&characters, seed);
 /// println!("{:?}", table);
 /// ```
-fn table3(characters: &[u8], seed: u64) -> Vec<Vec<Vec<u8>>> {
+fn table3(characters: &str, seed: u64) -> Vec<Vec<Vec<u8>>> {
+    let characters: Vec<u8> = characters.bytes().collect();
     let len = characters.len();
     let mut chars: Vec<u8> = characters.to_vec();
     let mut rng = StdRng::seed_from_u64(seed);
@@ -566,6 +566,30 @@ mod tests {
         let expected = "rldHWolelo";
         let result = transpose(word, shift);
         assert_eq!(result, Some(expected.to_string()));
+    }
+
+    #[test]
+    fn test_table3() {
+        let characters: &str = "abcdeéà";
+        let seed: u64 = 1234567890;
+
+        let actual_table = table3(characters, seed);
+
+        // Convert characters to bytes for comparison
+        let characters: Vec<u8> = characters.bytes().collect();
+
+        // Check specific properties of your table here.
+        // For example, you can check that the size of the table is correct.
+        assert_eq!(actual_table.len(), characters.len());
+
+        // Check that all expected values are in the table
+        for i in 0..characters.len() {
+            for j in 0..characters.len() {
+                for k in 0..characters.len() {
+                    assert!(characters.contains(&actual_table[i][j][k]));
+                }
+            }
+        }
     }
 
 }
