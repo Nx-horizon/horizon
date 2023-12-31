@@ -1,7 +1,29 @@
 use std::collections::HashMap;
 use std::error::Error;
-use crate::{addition_chiffres, get_salt, insert_random_stars, table3, xor_crypt};
+use rand::prelude::SliceRandom;
+use rand::rngs::StdRng;
+use rand::SeedableRng;
+use rayon::prelude::*;
+use crate::{addition_chiffres, get_salt, insert_random_stars, xor_crypt};
 use crate::kdfwagen::kdfwagen;
+
+fn table3(characters: &str, seed: u64) -> Vec<Vec<Vec<u8>>> {
+    let characters: Vec<u8> = characters.bytes().collect();
+    let len = characters.len();
+    let mut chars: Vec<u8> = characters.to_vec();
+    let mut rng = StdRng::seed_from_u64(seed);
+    chars.shuffle(&mut rng);
+
+    (0..len).into_par_iter().map(|i| {
+        (0..len).into_par_iter().map(|j| {
+            (0..len).into_par_iter().map(|k| {
+                let idx = (i + j + k) % len;
+                chars[idx]
+            }).collect::<Vec<u8>>()
+        }).collect::<Vec<Vec<u8>>>()
+    }).collect::<Vec<Vec<Vec<u8>>>>()
+}
+
 
 pub(crate) fn encrypt3(plain_text: &str, key1: &str, key2: &str, characters: &str, password: &str) -> Result<Vec<u8>, Box<dyn Error>> {
     let plain_text_with_stars = insert_random_stars(plain_text);

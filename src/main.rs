@@ -60,22 +60,6 @@ fn table2(characters: &str, seed: u64) -> Vec<Vec<Vec<char>>> {
 /// let table = table3(&characters, seed);
 /// println!("{:?}", table);
 /// ```
-fn table3(characters: &str, seed: u64) -> Vec<Vec<Vec<u8>>> {
-    let characters: Vec<u8> = characters.bytes().collect();
-    let len = characters.len();
-    let mut chars: Vec<u8> = characters.to_vec();
-    let mut rng = StdRng::seed_from_u64(seed);
-    chars.shuffle(&mut rng);
-
-    (0..len).into_par_iter().map(|i| {
-        (0..len).into_par_iter().map(|j| {
-            (0..len).into_par_iter().map(|k| {
-                let idx = (i + j + k) % len;
-                chars[idx]
-            }).collect::<Vec<u8>>()
-        }).collect::<Vec<Vec<u8>>>()
-    }).collect::<Vec<Vec<Vec<u8>>>>()
-}
 
 fn get_salt() -> String {
     whoami::username() + &whoami::hostname() + &whoami::distro()
@@ -571,30 +555,6 @@ mod tests {
         let expected = "rldHWolelo";
         let result = transpose(word, shift);
         assert_eq!(result, Some(expected.to_string()));
-    }
-
-    #[test]
-    fn test_table3() {
-        let characters = "15^,&X_.w4Uek[?zv>|LOi9;83tgVxCdsrGHj#Ky+<hPQSR@nMDB2Z{cfI0l6-F}7EW$%Ybq'Jo=~:\"](Aa/p!uTN)*`éèàm ";
-
-
-        let seed: u64 = 1234567890;
-
-        println!("String 1 en bytes: {:?}", characters.as_bytes());
-
-        let actual_table = table3(&characters, seed);
-
-        let global: Vec<u8> = characters.bytes().collect();
-
-        assert_eq!(actual_table.len(), global.len());
-
-        for i in 0..global.len() {
-            for j in 0..global.len() {
-                for k in 0..global.len() {
-                    assert!(global.contains(&actual_table[i][j][k]));
-                }
-            }
-        }
     }
 
 }
