@@ -3,7 +3,7 @@ mod kdfwagen;
 
 use std::collections::hash_map::DefaultHasher;
 use rand::Rng;
-use sha3::{Digest, Sha3_512};
+use sha3::{Digest};
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
 use rand::prelude::*;
 use mac_address::get_mac_address;
@@ -54,6 +54,22 @@ fn stable_indices(word_len: usize, shift: usize) -> Vec<usize> {
 }
 
 
+/// Transpose characters in a word based on a specified shift.
+///
+/// This function takes a word (string) and a shift value. It transposes characters
+/// in the word by shifting their positions. The shift is performed in a stable manner
+/// using a helper function `stable_indices`. If the word is empty or if the shift
+/// value is greater than or equal to the word length, the function returns `None`.
+///
+/// # Arguments
+///
+/// * `word` - A string representing the word whose characters will be transposed.
+/// * `shift` - The number of positions to shift the characters in the word.
+///
+/// # Returns
+///
+/// * `Some(String)` - A new string representing the transposed word.
+/// * `None` - If the word is empty or if the shift value is out of bounds.
 fn transpose(word: &str, shift: usize) -> Option<String> {
     let word_chars: Vec<char> = word.chars().collect();
     let word_len = word_chars.len();
@@ -99,33 +115,6 @@ fn addition_chiffres(adresse_mac: &str) -> u32 {
 }
 
 
-fn kdf(word: &str, turn: u32) -> String {
-    let mut result = word.to_string();
-    let salt = word.chars().rev().collect::<String>();
-    let mut hasher = Sha3_512::new();
-
-    for i in 0..turn {
-        if let Some(transposed) = transpose(&result, i as usize) {
-            result = transposed;
-        }
-
-        // XOR operation
-        let mut xor_result = xor_crypt(result.as_bytes(), salt.as_bytes());
-        xor_result = rotate_right(xor_result, i);
-        result = String::from_utf8_lossy(&xor_result).into_owned();
-
-        hasher.update(result.as_bytes());
-        hasher.update(salt.as_bytes());
-        let hasher_clone = hasher.clone();
-        result = format!("{:x}", hasher_clone.finalize());
-    }
-
-    result
-}
-
-fn rotate_right(bytes: Vec<u8>, count: u32) -> Vec<u8> {
-    bytes.into_iter().map(|b| b.rotate_right(count)).collect()
-}
 
 fn generate_key2(seed: &str) -> Result<String, SystemTrayError> {
     if seed.len() < 10 {
@@ -325,15 +314,6 @@ mod tests {
         let word_with_stars = insert_random_stars(word);
         assert!(word_with_stars.len() >= word.len());
         assert!(word_with_stars.contains("^"));
-    }
-
-    #[test]
-    fn test_kdf() {
-        let word = "HelloWorld";
-        let kdf_result = kdf(word, 500);
-        assert_ne!(kdf_result, word);
-        assert!(kdf_result.len() > word.len());
-        assert_ne!(kdf(word, 499), kdf(word, 500));
     }
 
     #[test]
