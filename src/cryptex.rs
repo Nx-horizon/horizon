@@ -37,12 +37,14 @@ pub(crate) fn encrypt3(plain_text: &str, key1: &str, key2: &str, characters: &st
     let characters_len = characters.len();
     let table_len = table.len();
 
-    let key1_chars: Vec<char> = key1.chars().collect();
-    let key2_chars: Vec<char> = key2.chars().collect();
+    let key1_chars: Vec<usize> = key1.chars().map(|c| c as usize % characters_len).collect();
+    let key2_chars: Vec<usize> = key2.chars().map(|c| c as usize % characters_len).collect();
+    let key1_len = key1_chars.len();
+    let key2_len = key2_chars.len();
 
     for (i, c) in plain_text_with_stars.chars().enumerate() {
-        let table_2d = key1_chars[i % key1_chars.len()] as usize % characters_len;
-        let row = key2_chars[i % key2_chars.len()] as usize % characters_len;
+        let table_2d = key1_chars[i % key1_len];
+        let row = key2_chars[i % key2_len];
 
         match char_positions.get(&c) {
             Some(col) => {
@@ -78,12 +80,14 @@ pub(crate) fn decrypt3(cipher_text: &[u8], key1: &str, key2: &str, characters: &
     let characters_len = characters.len();
     let table_len = table.len();
 
-    let key1_chars: Vec<char> = key1.chars().collect();
-    let key2_chars: Vec<char> = key2.chars().collect();
+    let key1_chars: Vec<usize> = key1.chars().map(|c| c as usize % characters_len).collect();
+    let key2_chars: Vec<usize> = key2.chars().map(|c| c as usize % characters_len).collect();
+    let key1_len = key1_chars.len();
+    let key2_len = key2_chars.len();
 
     for (i, c) in cipher_text.chars().enumerate() {
-        let table_2d = key1_chars[i % key1_chars.len()] as usize % characters_len;
-        let row = key2_chars[i % key2_chars.len()] as usize % characters_len;
+        let table_2d = key1_chars[i % key1_len];
+        let row = key2_chars[i % key2_len];
 
         for col in 0..characters_len {
             if table_2d < table_len && row < table[table_2d].len() && col < table[table_2d][row].len() && c == table[table_2d][row][col] as char {
