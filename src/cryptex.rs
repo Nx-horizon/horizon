@@ -7,6 +7,16 @@ use rayon::prelude::*;
 use crate::{addition_chiffres, get_salt, insert_random_stars, xor_crypt};
 use crate::kdfwagen::kdfwagen;
 
+//juste a test don't mind about it
+pub(crate) fn hyperion(plain_text: &str, key1: &str, key2: &str, characters: &str, password: &str, block_size: usize) -> Vec<Vec<u8>> {
+    let blocks: Vec<String> = plain_text.chars().collect::<Vec<_>>().chunks(block_size).map(|chunk| chunk.iter().collect::<String>()).collect();
+    let results: Vec<_> = blocks.into_par_iter().map(|block| {
+        encrypt3(&block, key1, key2, characters, password).unwrap()
+    }).collect();
+
+    results
+}
+
 fn table3(characters: &str, seed: u64) -> Vec<Vec<Vec<u8>>> {
     let characters: Vec<u8> = characters.bytes().collect();
     let len = characters.len();
@@ -106,10 +116,10 @@ mod tests {
 
     #[test]
     fn test_encrypt3_decrypt3() {
-        let plain_text = "helloworldé";
+        let plain_text = "cest moi le grabd test du matin et je suis content";
         let key1 = "key1";
         let key2 = "key2";
-        let characters = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789! ,^é";
+        let characters = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789! ,^éèà";
         let password = "password";
 
         // Test encrypt3
@@ -130,7 +140,7 @@ mod tests {
 
     #[test]
     fn test_encrypt3() {
-        let plain_text = "helloworld";
+        let plain_text = "cest moi le grabd test du matin et je suis content";
         let key1 = "key1";
         let key2 = "key2";
         let characters = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789! ,^";
@@ -142,6 +152,25 @@ mod tests {
                 assert_ne!(encrypted, plain_text.as_bytes());
             }
             Err(e) => panic!("Encryption failed with error: {:?}", e),
+        }
+    }
+
+    #[test]
+    fn test_hyperion() {
+        let plain_text = "cest moi le grabd test du matin et je suis content";
+        let key1 = "key1";
+        let key2 = "key2";
+        let characters = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789! ,^";
+        let password = "password";
+        let block_size = 2;
+
+        let encrypted_blocks = hyperion(plain_text, key1, key2, characters, password, block_size);
+
+        assert_eq!(encrypted_blocks.len(), plain_text.len() / block_size);
+
+
+        for block in encrypted_blocks {
+            assert_ne!(block, plain_text.as_bytes());
         }
     }
 }
