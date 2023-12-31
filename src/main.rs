@@ -33,6 +33,22 @@ fn table2(characters: &str, seed: u64) -> Vec<Vec<Vec<char>>> {
     }).collect::<Vec<Vec<Vec<char>>>>()
 }
 
+fn table3(characters: &[u8], seed: u64) -> Vec<Vec<Vec<u8>>> {
+    let len = characters.len();
+    let mut chars: Vec<u8> = characters.to_vec();
+    let mut rng = StdRng::seed_from_u64(seed);
+    chars.shuffle(&mut rng);
+
+    (0..len).into_par_iter().map(|i| {
+        (0..len).into_par_iter().map(|j| {
+            (0..len).into_par_iter().map(|k| {
+                let idx = (i + j + k) % len;
+                chars[idx]
+            }).collect::<Vec<u8>>()
+        }).collect::<Vec<Vec<u8>>>()
+    }).collect::<Vec<Vec<Vec<u8>>>>()
+}
+
 fn stable_indices(word_len: usize, shift: usize) -> Vec<usize> {
     let mut indices: Vec<usize> = (0..word_len).collect();
 
