@@ -1,10 +1,27 @@
 use sha3::{Sha3_512, Digest};
-
+/// Computes the Hash-based Message Authentication Code (HMAC) using the SHA3-512 hashing algorithm.
+///
+/// # Parameters
+///
+/// - `key`: A slice of unsigned 8-bit integers representing the secret key for HMAC.
+/// - `message`: A slice of unsigned 8-bit integers representing the message to be authenticated.
+///
+/// # Returns
+///
+/// Returns the HMAC as a vector of unsigned 8-bit integers.
+///
+/// # Examples
+///
+/// ```rust
+/// let key = vec![/* vector of u8 representing key */];
+/// let message = vec![/* vector of u8 representing message */];
+/// let hmac_result = hmac(&key, &message);
+/// println!("{:?}", hmac_result);
+/// ```
 fn hmac(key: &[u8], message: &[u8]) -> Vec<u8> {
-    const BLOCK_SIZE: usize = 128; // Taille du bloc pour SHA-512
+    const BLOCK_SIZE: usize = 128;
 
 
-    // Ajuster la clé si elle est trop longue
     let mut adjusted_key = if key.len() > BLOCK_SIZE {
         let mut hasher = Sha3_512::new();
         hasher.update(key);
@@ -13,39 +30,53 @@ fn hmac(key: &[u8], message: &[u8]) -> Vec<u8> {
         key.to_vec()
     };
 
-    // Remplir la clé si elle est trop courte
     if adjusted_key.len() < BLOCK_SIZE {
         adjusted_key.resize(BLOCK_SIZE, 0);
     }
 
-    // Calculer les valeurs internes pour le masquage
     let ipad: Vec<u8> = adjusted_key.iter().map(|&b| b ^ 0x36).collect();
     let opad: Vec<u8> = adjusted_key.iter().map(|&b| b ^ 0x5C).collect();
 
-    // Concaténer le masque interne avec le message
     let inner_input: Vec<u8> = ipad.into_iter().chain(message.iter().cloned()).collect();
 
-    // Appliquer le hachage interne (SHA-512)
     let inner_hash = Sha3_512::digest(inner_input);
 
-    // Concaténer le masque externe avec le haché interne
     let outer_input: Vec<u8> = opad.into_iter().chain(inner_hash.iter().cloned()).collect();
 
-    // Appliquer le hachage externe (SHA-512) pour obtenir la sortie finale
     Sha3_512::digest(outer_input).to_vec()
 }
 
-// Fonction PBKDF2
+/// Performs the Key Derivation Function (KDF) based on the HMAC-SHA3-512 algorithm.
+///
+/// # Parameters
+///
+/// - `password`: A slice of unsigned 8-bit integers representing the password.
+/// - `salt`: A slice of unsigned 8-bit integers representing the salt.
+/// - `iterations`: The number of iterations for the KDF.
+///
+/// # Returns
+///
+/// Returns the derived key as a vector of unsigned 8-bit integers.
+///
+/// # Examples
+///
+/// ```rust
+/// let password = vec![/* vector of u8 representing password */];
+/// let salt = vec![/* vector of u8 representing salt */];
+/// let iterations = 1000;
+/// let derived_key = kdfwagen(&password, &salt, iterations);
+/// println!("{:?}", derived_key);
+/// ```
 pub(crate) fn kdfwagen(password: &[u8], salt: &[u8], iterations: usize) -> Vec<u8> {
-    const PRF_OUTPUT_SIZE: usize = 64; // Taille de sortie de la fonction de hachage utilisée (SHA-512)
-    const KEY_LENGTH: usize = 512; // Taille de la clé de sortie
+    const PRF_OUTPUT_SIZE: usize = 64;
+    const KEY_LENGTH: usize = 512;
 
 
     let mut result = Vec::new();
     let mut block_count = (KEY_LENGTH + PRF_OUTPUT_SIZE - 1) / PRF_OUTPUT_SIZE;
 
     if block_count > 255 {
-        block_count = 255; // Limiter le nombre de blocs pour éviter le débordement
+        block_count = 255;
     }
 
     for block_index in 1..=block_count {

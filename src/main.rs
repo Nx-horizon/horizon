@@ -16,7 +16,16 @@ use crate::systemtrayerror::SystemTrayError;
 
 //v 0.3.91
 
-
+///
+/// # Parameters
+///
+/// - `characters`: A string representing the set of characters used to populate the table.
+/// - `seed`: A 64-bit unsigned integer serving as the seed for the randomization process.
+///
+/// # Returns
+///
+/// Returns a 3D vector representing the table of characters, where each dimension is shuffled independently.
+///
 fn table2(characters: &str, seed: u64) -> Vec<Vec<Vec<char>>> {
     let len = characters.len();
     let mut chars: Vec<char> = characters.chars().collect();
@@ -32,7 +41,25 @@ fn table2(characters: &str, seed: u64) -> Vec<Vec<Vec<char>>> {
         }).collect::<Vec<Vec<char>>>()
     }).collect::<Vec<Vec<Vec<char>>>>()
 }
-
+/// Generates a 3D table of unsigned 8-bit integers based on the input character set and a provided seed.
+///
+/// # Parameters
+///
+/// - `characters`: A slice of unsigned 8-bit integers representing the set of characters used to populate the table.
+/// - `seed`: A 64-bit unsigned integer serving as the seed for the randomization process.
+///
+/// # Returns
+///
+/// Returns a 3D vector representing the table of unsigned 8-bit integers, where each dimension is shuffled independently.
+///
+/// # Examples
+///
+/// ```rust
+/// let characters = vec![/* vector of u8 representing characters */];
+/// let seed = 42;
+/// let table = table3(&characters, seed);
+/// println!("{:?}", table);
+/// ```
 fn table3(characters: &[u8], seed: u64) -> Vec<Vec<Vec<u8>>> {
     let len = characters.len();
     let mut chars: Vec<u8> = characters.to_vec();
@@ -131,7 +158,18 @@ fn transpose(word: &str, shift: usize) -> Option<String> {
 
     Some(output)
 }
-
+/// Generates a key using the machine's MAC address and a key derivation function (KDF).
+///
+/// # Returns
+///
+/// Returns the generated key as a hexadecimal string.
+///
+/// # Examples
+///
+/// ```rust
+/// let key = generate_key();
+/// println!("Generated Key: {}", key);
+/// ```
 pub fn generate_key() -> String {
     let returner = match get_mac_address() {
         Ok(Some(mac_address)) => {
@@ -151,7 +189,23 @@ pub fn generate_key() -> String {
 
     returner
 }
-
+/// Calculates the sum of digits in a given MAC address string.
+///
+/// # Parameters
+///
+/// - `adresse_mac`: A string representing the MAC address from which the sum of digits will be calculated.
+///
+/// # Returns
+///
+/// Returns the sum of digits as a 32-bit unsigned integer.
+///
+/// # Examples
+///
+/// ```rust
+/// let mac_address = "12:34:56:78:9A:BC";
+/// let sum = addition_chiffres(mac_address);
+/// println!("Sum of digits: {}", sum);
+/// ```
 fn addition_chiffres(adresse_mac: &str) -> u32 {
     adresse_mac
         .chars()
@@ -160,7 +214,32 @@ fn addition_chiffres(adresse_mac: &str) -> u32 {
 }
 
 
-
+/// Generates a key using the provided seed and a key derivation function (KDF).
+///
+/// # Parameters
+///
+/// - `seed`: A string serving as the seed for key generation. It should be at least 10 characters long.
+///
+/// # Returns
+///
+/// Returns the generated key as a hexadecimal string on success. If the seed is less than 10 characters, returns an error of type `SystemTrayError`.
+///
+/// # Errors
+///
+/// Returns a `SystemTrayError` with code 4 if the provided seed is less than 10 characters.
+///
+/// # Examples
+///
+/// ```rust
+/// match generate_key2("mysecureseed") {
+///     Ok(key) => {
+///         println!("Generated Key: {}", key);
+///     },
+///     Err(err) => {
+///         println!("Error: {}", err);
+///     },
+/// }
+/// ```
 fn generate_key2(seed: &str) -> Result<String, SystemTrayError> {
     if seed.len() < 10 {
         return Err(SystemTrayError::new(4));
@@ -172,7 +251,23 @@ fn generate_key2(seed: &str) -> Result<String, SystemTrayError> {
 }
 
 
-// Fonction pour empoisonner à des positions aléatoires dans le mot
+/// Inserts a random number of caret (^) characters (stars) into the given word at random positions.
+///
+/// # Parameters
+///
+/// - `word`: A string representing the word into which random stars will be inserted.
+///
+/// # Returns
+///
+/// Returns a new string with a random number of stars (^) inserted at random positions within the original word.
+///
+/// # Examples
+///
+/// ```rust
+/// let original_word = "example";
+/// let word_with_stars = insert_random_stars(original_word);
+/// println!("Word with Stars: {}", word_with_stars);
+/// ```
 fn insert_random_stars(word: &str) -> String {
     let mut rng = OsRng;
     let num_stars = rng.gen_range(word.len()/2..word.len()*2);
@@ -187,7 +282,43 @@ fn insert_random_stars(word: &str) -> String {
 
     word_chars.into_iter().collect()
 }
-
+/// Encrypts a plain text using a custom encryption algorithm based on keys, character set, and a password.
+///
+/// # Parameters
+///
+/// - `plain_text`: The plain text to be encrypted.
+/// - `key1`: The first encryption key.
+/// - `key2`: The second encryption key.
+/// - `characters`: A string representing the set of characters used in the encryption.
+/// - `password`: A password used in the encryption process.
+///
+/// # Returns
+///
+/// Returns the encrypted cipher text as a vector of unsigned 8-bit integers on success. Returns a `SystemTrayError` on failure.
+///
+/// # Errors
+///
+/// Returns a `SystemTrayError` with code 1 if an invalid table position is encountered during encryption.
+/// Returns a `SystemTrayError` with code 5 if there is an issue extracting characters from `key1` or `key2`.
+/// Returns a `SystemTrayError` with code 6 if a character in the plain text is not found in the character set.
+///
+/// # Examples
+///
+/// ```rust
+/// let plain_text = "hello";
+/// let key1 = "key1";
+/// let key2 = "key2";
+/// let characters = "abcdefghijklmnopqrstuvwxyz";
+/// let password = "securepassword";
+/// match encrypt(plain_text, key1, key2, characters, password) {
+///     Ok(cipher_text) => {
+///         println!("Cipher Text: {:?}", cipher_text);
+///     },
+///     Err(err) => {
+///         println!("Error: {}", err);
+///     },
+/// }
+/// ```
 pub(crate) fn encrypt(plain_text: &str, key1: &str, key2: &str, characters: &str, password: &str) -> Result<Vec<u8>, SystemTrayError> {
     let plain_text_with_stars = insert_random_stars(plain_text);
     let table = table2(characters, (addition_chiffres(key2) * addition_chiffres(key1)) as u64);
@@ -214,6 +345,43 @@ pub(crate) fn encrypt(plain_text: &str, key1: &str, key2: &str, characters: &str
 
     Ok(xor)
 }
+/// Decrypts a cipher text using a custom decryption algorithm based on keys, character set, and a password.
+///
+/// # Parameters
+///
+/// - `cipher_text`: The cipher text to be decrypted, represented as a vector of unsigned 8-bit integers.
+/// - `key1`: The first decryption key.
+/// - `key2`: The second decryption key.
+/// - `characters`: A string representing the set of characters used in the encryption.
+/// - `password`: A password used in the decryption process.
+///
+/// # Returns
+///
+/// Returns the decrypted plain text on success. Returns a `SystemTrayError` on failure.
+///
+/// # Errors
+///
+/// Returns a `SystemTrayError` with code 1 if an invalid table position is encountered during decryption.
+/// Returns a `SystemTrayError` with code 5 if there is an issue extracting characters from `key1` or `key2`.
+/// Returns a `SystemTrayError` with code 6 if a character in the cipher text is not found in the character set.
+///
+/// # Examples
+///
+/// ```rust
+/// let cipher_text = vec![/* vector of u8 representing cipher text */];
+/// let key1 = "key1";
+/// let key2 = "key2";
+/// let characters = "abcdefghijklmnopqrstuvwxyz";
+/// let password = "securepassword";
+/// match decrypt(cipher_text, key1, key2, characters, password) {
+///     Ok(plain_text) => {
+///         println!("Plain Text: {}", plain_text);
+///     },
+///     Err(err) => {
+///         println!("Error: {}", err);
+///     },
+/// }
+/// ```
 pub(crate) fn decrypt(cipher_text: Vec<u8>, key1: &str, key2: &str, characters: &str, password: &str) -> Result<String, SystemTrayError> {
     let table =  table2(characters, (addition_chiffres(key2) * addition_chiffres(key1)) as u64);
     let mut char_positions = HashMap::with_capacity(characters.len());
@@ -241,7 +409,25 @@ pub(crate) fn decrypt(cipher_text: Vec<u8>, key1: &str, key2: &str, characters: 
 
     Ok(plain_text.replace('^', ""))
 }
-
+/// Performs an XOR encryption/decryption on the given data using the provided key.
+///
+/// # Parameters
+///
+/// - `key`: A slice of unsigned 8-bit integers representing the key for the XOR operation.
+/// - `data`: A slice of unsigned 8-bit integers representing the data to be XORed.
+///
+/// # Returns
+///
+/// Returns the result of the XOR operation as a vector of unsigned 8-bit integers.
+///
+/// # Examples
+///
+/// ```rust
+/// let key = vec![/* vector of u8 representing the key */];
+/// let data = vec![/* vector of u8 representing the data */];
+/// let result = xor_crypt(&key, &data);
+/// println!("{:?}", result);
+/// ```
 fn xor_crypt(key: &[u8], data: &[u8]) -> Vec<u8> {
     let key_len = key.len();
     data.par_iter().enumerate().map(|(i, &byte)| byte ^ key[i % key_len]).collect()
