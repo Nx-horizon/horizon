@@ -116,10 +116,10 @@ mod tests {
 
     #[test]
     fn test_encrypt3_decrypt3() {
-        let plain_text = "cest moi le grabd test du matin et je suis content";
+        let plain_text = "cest moi le grabd test du matin et je à suis content";
         let key1 = "key1";
         let key2 = "key2";
-        let characters = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789! ,^éèà";
+        let characters = "15^,&X_.w4Uek[?zv>|LOi9;83tgVxCdsrGHj#Ky+<hPQSR@nMDB2Z{cfI0l6-F}7EW$%Ybq'Jo=~:\"](Aa/p!uTN)*`m àé";
         let password = "password";
 
         // Test encrypt3
