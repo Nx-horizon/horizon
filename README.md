@@ -1,4 +1,6 @@
-# Projet de Cryptographie
+# Horizon-CryptoGraphie
+
+![Logo](./proxy-image.png)
 
 Ce projet implémente un système de cryptographie basé sur la permutation de caractères dans une table tridimensionnelle, utilisant des clés générées de manière sécurisée. Le cryptage est réalisé à l'aide d'une combinaison de techniques, y compris des opérations de permutation et de chiffrement XOR.
 
