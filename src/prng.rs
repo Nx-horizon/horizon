@@ -1,47 +1,79 @@
+use std::collections::VecDeque;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-struct SimpleRNG {
-    state: [u64; 4],
+struct Yarrow {
+    seed: u64,
+    pool: VecDeque<u8>,
 }
 
-impl SimpleRNG {
-    fn new() -> SimpleRNG {
-        let seed = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .expect("Le temps actuel est antérieur à l'époque Unix")
-            .as_nanos() as u64;
-
-        SimpleRNG { state: [seed, seed, seed, seed] }
+impl Yarrow {
+    fn new(seed: u64) -> Self {
+        Yarrow {
+            seed,
+            pool: VecDeque::new(),
+        }
     }
 
-    fn next(&mut self) -> u64 {
-        let mut t = self.state[3];
-        t ^= t << 11;
-        t ^= t >> 8;
-        self.state[3] = self.state[2];
-        self.state[2] = self.state[1];
-        self.state[1] = self.state[0];
-        self.state[0] ^= t ^ (t >> 19);
-        self.state[0]
+    fn add_entropy(&mut self, entropy: u64) {
+        let entropy_bytes = entropy.to_be_bytes();
+        self.pool.extend(entropy_bytes.iter().copied());
     }
 
-    fn gen_range(&mut self, min: u64, max: u64) -> u64 {
-        assert!(min <= max, "min doit être inférieur ou égal à max");
+    fn reseed(&mut self, new_seed: u64) {
+        let external_entropy = new_seed;
 
+        self.add_entropy(external_entropy);
 
-        let range = max.wrapping_sub(min).wrapping_add(1);
-        let mut random_value = self.next();
-        random_value %= range;
-        random_value.wrapping_add(min)
+        let combined_entropy = self.combine_entropy();
+        self.mix_entropy(combined_entropy);
     }
 
-    fn from_seed(seed: u64) -> SimpleRNG {
-        SimpleRNG { state: [seed, seed, seed, seed] }
+    fn combine_entropy(&self) -> u64 {
+        let mut combined_entropy = self.seed;
+        for byte in &self.pool {
+            combined_entropy = combined_entropy.wrapping_mul(33).wrapping_add(u64::from(*byte));
+        }
+        combined_entropy
     }
 
-    fn next_from_seed(&mut self, seed: u64) -> u64 {
-        self.state = [seed, seed, seed, seed];
-        self.next()
+    fn mix_entropy(&mut self, entropy: u64) {
+        let entropy_bytes = entropy.to_be_bytes();
+        for (existing_byte, &new_byte) in self.pool.iter_mut().zip(&entropy_bytes) {
+            *existing_byte ^= new_byte;
+        }
+    }
+
+    fn generate_random_bytes(&mut self, count: usize) -> Vec<u8> {
+        let mut random_bytes = Vec::with_capacity(count);
+
+        for _ in 0..count {
+            let entropy = self.combine_entropy();
+            self.mix_entropy(entropy);
+
+            let random_byte = (entropy & 0xFF) as u8;
+            random_bytes.push(random_byte);
+        }
+
+        let last_byte = random_bytes.last().copied().unwrap_or(0);
+        self.reseed(last_byte as u64);
+
+        random_bytes
+    }
+
+    fn generate_random_number(&mut self) -> u64 {
+        let random_bytes = self.generate_random_bytes(8);
+        let mut random_number: u64 = 0;
+
+        for &byte in &random_bytes {
+            random_number = (random_number << 8) | u64::from(byte);
+        }
+
+        random_number
+    }
+
+    fn generate_bounded_number(&mut self, min: u64, max: u64) -> u64 {
+        let random_number = self.generate_random_number();
+        min + (random_number % (max - min + 1))
     }
 }
 
@@ -50,38 +82,44 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_next() {
-        let mut rng = SimpleRNG::new();
-        let first = rng.next();
-        let second = rng.next();
-        assert_ne!(first, second, "Les deux nombres générés sont identiques");
+    fn test_add_entropy() {
+        let mut rng = Yarrow::new(12345);
+        let initial_state = rng.pool.clone();
+        rng.add_entropy(67890);
+        assert_ne!(rng.pool, initial_state, "L'ajout d'entropie n'a pas modifié l'état du générateur");
     }
 
     #[test]
-    fn test_gen_range() {
-        let mut rng = SimpleRNG::new();
-        let min = 10;
-        let max = 20;
-        for _ in 0..1000 {
-            let random_value = rng.gen_range(min, max);
-            println!("{}", random_value);
-            assert!(random_value >= min && random_value <= max, "Le nombre généré est hors de la plage spécifiée");
+    fn test_reseed() {
+        let mut rng = Yarrow::new(12345);
+        let initial_state = rng.pool.clone();
+        rng.reseed(67890);
+        assert_ne!(rng.pool, initial_state, "La méthode reseed n'a pas modifié l'état du générateur");
+    }
+
+    #[test]
+    fn test_generate_random_bytes() {
+        let mut rng = Yarrow::new(12345);
+        let first = rng.generate_random_bytes(10);
+        let second = rng.generate_random_bytes(10);
+        assert_ne!(first, second, "Les deux appels à generate_random_bytes ont produit les mêmes résultats");
+    }
+
+    #[test]
+    fn test_printer(){
+        let mut rng = Yarrow::new(12345);
+        for _ in 0..10 {
+            rng.reseed(SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs());
+            let random_bytes = rng.generate_random_number();
+            println!("{:?}", random_bytes);
         }
     }
-
     #[test]
-    fn test_from_seed() {
-        let seed = 12345;
-        let rng = SimpleRNG::from_seed(seed);
-        assert_eq!(rng.state[0], seed, "Le premier élément de l'état du RNG ne correspond pas à la graine donnée");
-    }
-
-    #[test]
-    fn test_next_from_seed() {
-        let mut rng = SimpleRNG::new();
-        let seed = 12345;
-        let first = rng.next_from_seed(seed);
-        let second = rng.next_from_seed(seed);
-        assert_eq!(first, second, "Les deux nombres générés ne sont pas identique");
+    fn test_generate_bounded_number() {
+        let mut rng = Yarrow::new(12345);
+        for _ in 0..1000 {
+            let number = rng.generate_bounded_number(10, 20);
+            assert!(number >= 10 && number <= 20, "Le nombre généré est hors de la plage spécifiée");
+        }
     }
 }
