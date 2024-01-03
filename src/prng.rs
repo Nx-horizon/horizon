@@ -1,9 +1,12 @@
 use std::collections::VecDeque;
 use std::time::{SystemTime, UNIX_EPOCH};
+use sha3::{Sha3_512, Digest};
 
 struct Yarrow {
     seed: u64,
     pool: VecDeque<u8>,
+    // Ajouter une source d'entropie basée sur le temps
+    last_reseed_time: u64,
 }
 
 impl Yarrow {
@@ -11,6 +14,7 @@ impl Yarrow {
         Yarrow {
             seed,
             pool: VecDeque::new(),
+            last_reseed_time: 0,
         }
     }
 
@@ -26,6 +30,12 @@ impl Yarrow {
 
         let combined_entropy = self.combine_entropy();
         self.mix_entropy(combined_entropy);
+
+        let current_time = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs();
+        if current_time - self.last_reseed_time > 60 {
+            self.last_reseed_time = current_time;
+            self.seed ^= new_seed;
+        }
     }
 
     fn combine_entropy(&self) -> u64 {
@@ -33,14 +43,18 @@ impl Yarrow {
         for byte in &self.pool {
             combined_entropy = combined_entropy.wrapping_mul(33).wrapping_add(u64::from(*byte));
         }
+        // Ajouter l'entropie basée sur le temps
+        combined_entropy ^= self.last_reseed_time;
         combined_entropy
     }
 
     fn mix_entropy(&mut self, entropy: u64) {
         let entropy_bytes = entropy.to_be_bytes();
-        for (existing_byte, &new_byte) in self.pool.iter_mut().zip(&entropy_bytes) {
-            *existing_byte ^= new_byte;
-        }
+        let mut hasher = Sha3_512::new();
+        hasher.update(&self.pool.make_contiguous());
+        hasher.update(&entropy_bytes);
+        let hash = hasher.finalize();
+        self.pool = VecDeque::from(hash.as_slice().to_vec());
     }
 
     fn generate_random_bytes(&mut self, count: usize) -> Vec<u8> {
