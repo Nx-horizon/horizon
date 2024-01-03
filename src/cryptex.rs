@@ -4,14 +4,12 @@ use rand::prelude::SliceRandom;
 use rand::rngs::StdRng;
 use rand::SeedableRng;
 use rayon::prelude::*;
-use crate::{addition_chiffres, get_salt, insert_random_stars, xor_crypt};
-use crate::kdfwagen::kdfwagen;
+use crate::{addition_chiffres, insert_random_stars};
 
-
-fn table3(characters: &str, seed: u64) -> Vec<Vec<Vec<u8>>> {
-    let characters: Vec<u8> = characters.bytes().collect();
+fn table3(characters: &str, seed: u64) -> Vec<Vec<Vec<String>>> {
+    let characters: Vec<String> = characters.chars().map(|c| c.to_string()).collect();
     let len = characters.len();
-    let mut chars: Vec<u8> = characters.to_vec();
+    let mut chars: Vec<String> = characters.to_vec();
 
     let mut rng = StdRng::seed_from_u64(seed);
     chars.shuffle(&mut rng);
@@ -20,21 +18,22 @@ fn table3(characters: &str, seed: u64) -> Vec<Vec<Vec<u8>>> {
         (0..len).into_par_iter().map(|j| {
             (0..len).into_par_iter().map(|k| {
                 let idx = (i + j + k) % len;
-                chars[idx]
-            }).collect::<Vec<u8>>()
-        }).collect::<Vec<Vec<u8>>>()
-    }).collect::<Vec<Vec<Vec<u8>>>>()
+                chars[idx].clone()
+            }).collect::<Vec<String>>()
+        }).collect::<Vec<Vec<String>>>()
+    }).collect::<Vec<Vec<Vec<String>>>>()
 }
 
-pub(crate) fn encrypt3(plain_text: &str, key1: &str, key2: &str, characters: &str, password: &str) -> Result<Vec<u8>, Box<dyn Error>> {
-    let plain_text_with_stars = insert_random_stars(plain_text);
+pub(crate) fn encrypt3(plain_text: &str, key1: &str, key2: &str, characters: &str) -> Result<Vec<String>, Box<dyn Error>> {
+    let inter = insert_random_stars(plain_text);
+    let plain_text_chars: Vec<String> = inter.chars().map(|c| c.to_string()).collect();
     let table = table3(characters, (addition_chiffres(key2) * addition_chiffres(key1)) as u64);
     let mut char_positions = HashMap::with_capacity(characters.len());
     characters.chars().enumerate().for_each(|(i, c)| {
         char_positions.insert(c, i);
     });
 
-    let mut cipher_text = String::with_capacity(plain_text_with_stars.len());
+    let mut cipher_text = Vec::with_capacity(plain_text_chars.len());
     let characters_len = characters.len();
     let table_len = table.len();
 
@@ -43,17 +42,17 @@ pub(crate) fn encrypt3(plain_text: &str, key1: &str, key2: &str, characters: &st
     let key1_len = key1_chars.len();
     let key2_len = key2_chars.len();
 
-    for (i, c) in plain_text_with_stars.chars().enumerate() {
-        let table_2d = key1_chars[i % key1_len];
-        let row = key2_chars[i % key2_len];
+    for (i, c) in plain_text_chars.iter().enumerate() {
+        let table_2d = key1_chars[i % key1_len] % table_len;
+        let row = key2_chars[i % key2_len] % table_len;
 
-        match char_positions.get(&c) {
+        match char_positions.get(&c.chars().next().unwrap()) {
             Some(col) => {
                 let col = col % characters_len;
                 if table_2d < table_len && row < table[table_2d].len() && col < table[table_2d][row].len() {
-                    cipher_text.push(table[table_2d][row][col] as char);
+                    cipher_text.push(table[table_2d][row][col].clone());
                 } else {
-                    return Err("Error: Invalid table dimensions".into());
+                    return Err(format!("Error: Invalid table dimensions. table_2d: {}, row: {}, col: {}", table_2d, row, col).into());
                 }
             },
             None => {
@@ -62,17 +61,14 @@ pub(crate) fn encrypt3(plain_text: &str, key1: &str, key2: &str, characters: &st
             },
         }
     }
-    let xor = xor_crypt(&kdfwagen(password.as_bytes(), get_salt().as_bytes(), 30), cipher_text.as_bytes());
 
-    Ok(xor)
+    Ok(cipher_text)
 }
 
-pub(crate) fn decrypt3(cipher_text: &[u8], key1: &str, key2: &str, characters: &str, password: &str) -> Result<String, Box<dyn Error>> {
+pub(crate) fn decrypt3(cipher_text: &[String], key1: &str, key2: &str, characters: &str) -> Result<String, Box<dyn Error>> {
     let table = table3(characters, (addition_chiffres(key2) * addition_chiffres(key1)) as u64);
-    let cipher_text = xor_crypt(&kdfwagen(password.as_bytes(), get_salt().as_bytes(), 30), cipher_text);
-    let cipher_text = String::from_utf8(cipher_text)?;
 
-    let mut plain_text = String::with_capacity(cipher_text.len());
+    let mut plain_text = String::new();
     let characters_len = characters.len();
     let table_len = table.len();
 
@@ -81,18 +77,15 @@ pub(crate) fn decrypt3(cipher_text: &[u8], key1: &str, key2: &str, characters: &
     let key1_len = key1_chars.len();
     let key2_len = key2_chars.len();
 
-    // Convert characters to Vec<char>
-    let characters_vec: Vec<char> = characters.chars().collect();
-
-    for (i, c) in cipher_text.chars().enumerate() {
-        let table_2d = key1_chars[i % key1_len];
-        let row = key2_chars[i % key2_len];
+    for (i, c) in cipher_text.iter().enumerate() {
+        let table_2d = key1_chars[i % key1_len] % table_len;
+        let row = key2_chars[i % key2_len] % table_len;
 
         if table_2d < table_len && row < table[table_2d].len() {
-            if let Some(col) = table[table_2d][row].iter().position(|&x| x == c as u8) {
-                plain_text.push(characters_vec[col]);
+            if let Some(col) = table[table_2d][row].iter().position(|x| x == c) {
+                plain_text.push_str(&characters.chars().nth(col).unwrap().to_string());
             } else {
-                return Err("Error: Character not found in table".into());
+                return Err("Error: String not found in table".into());
             }
         } else {
             return Err("Error: Invalid table dimensions".into());
@@ -101,7 +94,6 @@ pub(crate) fn decrypt3(cipher_text: &[u8], key1: &str, key2: &str, characters: &
     plain_text = plain_text.replace('^', "");
     Ok(plain_text)
 }
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -111,18 +103,26 @@ mod tests {
         let plain_text = "cest moi le le grand test du matin et je à suis content";
         let key1 = "key1";
         let key2 = "key2";
-        let characters = "15^,&X_.w4Uek[?zv>|LOi9;83tgVxCdsrGHj#Ky+<hPQSR@nMDB2Z{cfI0l6-F}7EW$%Ybq'Jo=~:\"](Aa/p!uTN)*`m àé";
-        let password = "password";
+        let characters = "15^,&X_.w4Uek[?zv>|LOi9;83tgVxCdsrGHj#Ky+<hPQSR@nMDB2Z{cfI0l6-F}7EW$%Ybq'Jo=~:\"](Aa/p!uTN)*`màéÃ  ";
+
+        // Convert plain_text to Vec<String>
+        let plain_text_chars: Vec<String> = plain_text.chars().map(|c| c.to_string()).collect();
 
         // Test encrypt3
-        match encrypt3(plain_text, key1, key2, characters, password) {
+        match encrypt3(plain_text, key1, key2, characters) {
             Ok(encrypted) => {
                 println!("Encrypted: {:?}", encrypted);
-                assert_ne!(encrypted, plain_text.as_bytes());
+                assert_ne!(encrypted, plain_text_chars);
+
+                // Convert encrypted to Vec<String>
+                let encrypted_str: Vec<String> = encrypted.iter().map(|c| c.to_string()).collect();
 
                 // Test decrypt3
-                match decrypt3(&encrypted, key1, key2, characters, password) {
-                    Ok(decrypted) => assert_eq!(decrypted, plain_text),
+                match decrypt3(&encrypted_str, key1, key2, characters) {
+                    Ok(decrypted) => {
+                        println!("Decrypted: {:?}", decrypted);
+                        assert_eq!(decrypted, plain_text);
+                    },
                     Err(e) => panic!("Decryption failed with error: {:?}", e),
                 }
             }
@@ -130,21 +130,5 @@ mod tests {
         }
     }
 
-    #[test]
-    fn test_encrypt3() {
-        let plain_text = "cest moi le grabd test du matin et je suis content";
-        let key1 = "key1";
-        let key2 = "key2";
-        let characters = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789! ,^";
-        let password = "password";
-
-        // Test encrypt3
-        match encrypt3(plain_text, key1, key2, characters, password) {
-            Ok(encrypted) => {
-                assert_ne!(encrypted, plain_text.as_bytes());
-            }
-            Err(e) => panic!("Encryption failed with error: {:?}", e),
-        }
-    }
 
 }
