@@ -12,6 +12,7 @@ fn table3(characters: &str, seed: u64) -> Vec<Vec<Vec<u8>>> {
     let characters: Vec<u8> = characters.bytes().collect();
     let len = characters.len();
     let mut chars: Vec<u8> = characters.to_vec();
+
     let mut rng = StdRng::seed_from_u64(seed);
     chars.shuffle(&mut rng);
 
@@ -24,7 +25,6 @@ fn table3(characters: &str, seed: u64) -> Vec<Vec<Vec<u8>>> {
         }).collect::<Vec<Vec<u8>>>()
     }).collect::<Vec<Vec<Vec<u8>>>>()
 }
-
 
 pub(crate) fn encrypt3(plain_text: &str, key1: &str, key2: &str, characters: &str, password: &str) -> Result<Vec<u8>, Box<dyn Error>> {
     let plain_text_with_stars = insert_random_stars(plain_text);
@@ -81,15 +81,21 @@ pub(crate) fn decrypt3(cipher_text: &[u8], key1: &str, key2: &str, characters: &
     let key1_len = key1_chars.len();
     let key2_len = key2_chars.len();
 
+    // Convert characters to Vec<char>
+    let characters_vec: Vec<char> = characters.chars().collect();
+
     for (i, c) in cipher_text.chars().enumerate() {
         let table_2d = key1_chars[i % key1_len];
         let row = key2_chars[i % key2_len];
 
-        for col in 0..characters_len {
-            if table_2d < table_len && row < table[table_2d].len() && col < table[table_2d][row].len() && c == table[table_2d][row][col] as char {
-                plain_text.push(characters.chars().nth(col).ok_or("Error: Invalid characters length")?);
-                break;
+        if table_2d < table_len && row < table[table_2d].len() {
+            if let Some(col) = table[table_2d][row].iter().position(|&x| x == c as u8) {
+                plain_text.push(characters_vec[col]);
+            } else {
+                return Err("Error: Character not found in table".into());
             }
+        } else {
+            return Err("Error: Invalid table dimensions".into());
         }
     }
     plain_text = plain_text.replace('^', "");
