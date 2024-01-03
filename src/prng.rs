@@ -20,7 +20,10 @@ impl Yarrow {
 
     fn add_entropy(&mut self, entropy: u64) {
         let entropy_bytes = entropy.to_be_bytes();
-        self.pool.extend(entropy_bytes.iter().copied());
+        let mut hasher = Sha3_512::new();
+        hasher.update(&entropy_bytes);
+        let hash = hasher.finalize();
+        self.pool.extend(hash.iter().copied());
     }
 
     fn reseed(&mut self, new_seed: u64) {
@@ -91,6 +94,14 @@ impl Yarrow {
     }
 }
 
+fn shuffle<T>(items: &mut [T]) {
+    let len = items.len();
+    for i in (1..len).rev() {
+        let j = (SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos() as usize) % (i + 1);
+        items.swap(i, j);
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -135,5 +146,15 @@ mod tests {
             let number = rng.generate_bounded_number(10, 20);
             assert!(number >= 10 && number <= 20, "Le nombre généré est hors de la plage spécifiée");
         }
+    }
+
+    #[test]
+    fn test_shuffle() {
+        let mut items = vec![1, 2, 3, 4, 5];
+        let original = items.clone();
+        shuffle(&mut items);
+        assert_ne!(items, original, "Les éléments n'ont pas été mélangés");
+        items.sort();
+        assert_eq!(items, original, "Tous les éléments d'origine ne sont pas présents après le mélange");
     }
 }
