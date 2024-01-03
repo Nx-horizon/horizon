@@ -2,14 +2,46 @@ use std::collections::VecDeque;
 use std::time::{SystemTime, UNIX_EPOCH};
 use sha3::{Sha3_512, Digest};
 
+/// Represents the Yarrow cryptographic pseudorandom number generator.
+///
+/// # Fields
+///
+/// - `seed`: A 64-bit unsigned integer representing the initial seed for the generator.
+/// - `pool`: A deque of unsigned 8-bit integers serving as the entropy pool.
+/// - `last_reseed_time`: A 64-bit unsigned integer representing the time of the last reseed operation.
+///
+/// # Examples
+///
+/// ```rust
+/// let yarrow_instance = Yarrow {
+///     seed: 42,
+///     pool: VecDeque::new(),
+///     last_reseed_time: 0,
+/// };
+/// ```
 struct Yarrow {
     seed: u64,
     pool: VecDeque<u8>,
-    // Ajouter une source d'entropie basée sur le temps
     last_reseed_time: u64,
 }
 
+/// Implements methods for the Yarrow cryptographic pseudorandom number generator.
 impl Yarrow {
+    /// Creates a new instance of `Yarrow` with the specified seed.
+    ///
+    /// # Parameters
+    ///
+    /// - `seed`: A 64-bit unsigned integer serving as the initial seed for the generator.
+    ///
+    /// # Returns
+    ///
+    /// Returns a new `Yarrow` instance with the given seed.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// let yarrow_instance = Yarrow::new(42);
+    /// ```
     fn new(seed: u64) -> Self {
         Yarrow {
             seed,
@@ -18,6 +50,18 @@ impl Yarrow {
         }
     }
 
+    /// Adds entropy to the Yarrow generator by incorporating a 64-bit unsigned integer.
+    ///
+    /// # Parameters
+    ///
+    /// - `entropy`: A 64-bit unsigned integer representing the additional entropy.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// let mut yarrow_instance = Yarrow::new(42);
+    /// yarrow_instance.add_entropy(123);
+    /// ```
     fn add_entropy(&mut self, entropy: u64) {
         let entropy_bytes = entropy.to_be_bytes();
         let mut hasher = Sha3_512::new();
@@ -26,6 +70,18 @@ impl Yarrow {
         self.pool.extend(hash.iter().copied());
     }
 
+    /// Reseeds the Yarrow generator with new entropy, combining external entropy and current system time.
+    ///
+    /// # Parameters
+    ///
+    /// - `new_seed`: A 64-bit unsigned integer serving as the new seed for reseeding.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// let mut yarrow_instance = Yarrow::new(42);
+    /// yarrow_instance.reseed(123);
+    /// ```
     fn reseed(&mut self, new_seed: u64) {
         let external_entropy = new_seed;
 
@@ -41,29 +97,75 @@ impl Yarrow {
         }
     }
 
+    /// Combines the current state of the Yarrow generator's entropy pool, seed, and last reseed time.
+    ///
+    /// # Returns
+    ///
+    /// Returns a 64-bit unsigned integer representing the combined entropy.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// let yarrow_instance = Yarrow::new(42);
+    /// let combined_entropy = yarrow_instance.combine_entropy();
+    /// println!("{}", combined_entropy);
+    /// ```
     fn combine_entropy(&self) -> u64 {
         let mut combined_entropy = self.seed;
+
         for byte in &self.pool {
             combined_entropy = combined_entropy.wrapping_mul(33).wrapping_add(u64::from(*byte));
         }
-        // Ajouter l'entropie basée sur le temps
         combined_entropy ^= self.last_reseed_time;
         combined_entropy
     }
 
+    /// Mixes additional entropy into the Yarrow generator's entropy pool using the SHA3-512 hashing algorithm.
+    ///
+    /// # Parameters
+    ///
+    /// - `entropy`: A 64-bit unsigned integer representing the additional entropy to be mixed.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// let mut yarrow_instance = Yarrow::new(42);
+    /// let additional_entropy = 123;
+    /// yarrow_instance.mix_entropy(additional_entropy);
+    /// ```
     fn mix_entropy(&mut self, entropy: u64) {
         let entropy_bytes = entropy.to_be_bytes();
+
         let mut hasher = Sha3_512::new();
         hasher.update(&self.pool.make_contiguous());
         hasher.update(&entropy_bytes);
+
         let hash = hasher.finalize();
         self.pool = VecDeque::from(hash.as_slice().to_vec());
     }
 
+    /// Generates a sequence of random bytes using the Yarrow generator.
+    ///
+    /// # Parameters
+    ///
+    /// - `count`: The number of random bytes to generate.
+    ///
+    /// # Returns
+    ///
+    /// Returns a vector of unsigned 8-bit integers representing the generated random bytes.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// let mut yarrow_instance = Yarrow::new(42);
+    /// let random_bytes = yarrow_instance.generate_random_bytes(16);
+    /// println!("{:?}", random_bytes);
+    /// ```
     fn generate_random_bytes(&mut self, count: usize) -> Vec<u8> {
         let mut random_bytes = Vec::with_capacity(count);
 
         for _ in 0..count {
+
             let entropy = self.combine_entropy();
             self.mix_entropy(entropy);
 
@@ -77,8 +179,22 @@ impl Yarrow {
         random_bytes
     }
 
+    /// Generates a random 64-bit unsigned integer using the Yarrow generator.
+    ///
+    /// # Returns
+    ///
+    /// Returns a 64-bit unsigned integer representing the generated random number.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// let mut yarrow_instance = Yarrow::new(42);
+    /// let random_number = yarrow_instance.generate_random_number();
+    /// println!("{}", random_number);
+    /// ```
     fn generate_random_number(&mut self) -> u64 {
         let random_bytes = self.generate_random_bytes(8);
+
         let mut random_number: u64 = 0;
 
         for &byte in &random_bytes {
@@ -88,12 +204,44 @@ impl Yarrow {
         random_number
     }
 
+    /// Generates a random 64-bit unsigned integer within a specified range using the Yarrow generator.
+    ///
+    /// # Parameters
+    ///
+    /// - `min`: The minimum value of the generated number (inclusive).
+    /// - `max`: The maximum value of the generated number (inclusive).
+    ///
+    /// # Returns
+    ///
+    /// Returns a 64-bit unsigned integer within the specified range.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// let mut yarrow_instance = Yarrow::new(42);
+    /// let random_number = yarrow_instance.generate_bounded_number(10, 20);
+    /// println!("{}", random_number);
+    /// ```
     fn generate_bounded_number(&mut self, min: u64, max: u64) -> u64 {
         let random_number = self.generate_random_number();
+
         min + (random_number % (max - min + 1))
     }
 }
 
+/// Shuffles the elements of a mutable slice using the Fisher-Yates algorithm with a time-based seed.
+///
+/// # Parameters
+///
+/// - `items`: A mutable slice of elements to be shuffled.
+///
+/// # Examples
+///
+/// ```rust
+/// let mut elements = vec![1, 2, 3, 4, 5];
+/// shuffle(&mut elements);
+/// println!("{:?}", elements);
+/// ```
 fn shuffle<T>(items: &mut [T]) {
     let len = items.len();
     for i in (1..len).rev() {
