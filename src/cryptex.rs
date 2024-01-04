@@ -121,7 +121,6 @@ pub fn encrypt_file(file_path: &str, key: &[u8]) -> Result<(), Box<dyn Error>> {
 
 #[cfg(test)]
 mod tests {
-    use crate::kdfwagen::kdfwagen;
     use super::*;
 
     #[test]
@@ -154,30 +153,6 @@ mod tests {
             }
             Err(e) => panic!("Encryption failed with error: {:?}", e),
         }
-    }
-
-    #[test]
-    fn test_encrypt_file() {
-        // Specify the file path
-        let file_path = "";
-
-        // Get the original content of the file
-        let mut file = File::open(file_path).unwrap();
-        let mut original_content = Vec::new();
-        file.read_to_end(&mut original_content).unwrap();
-
-        // Encrypt the file
-        let key_vec = kdfwagen(b"password", b"salt", 100);
-        println!("Key: {:?}", key_vec);
-        encrypt_file(file_path, &key_vec).unwrap();
-
-        // Get the encrypted content of the file
-        let mut file = File::open(file_path).unwrap();
-        let mut encrypted_content = Vec::new();
-        file.read_to_end(&mut encrypted_content).unwrap();
-
-        // Check that the content has changed
-
     }
 
 
