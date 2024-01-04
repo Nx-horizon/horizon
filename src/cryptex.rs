@@ -6,6 +6,7 @@ use rand::SeedableRng;
 use rayon::prelude::*;
 use crate::{addition_chiffres, insert_random_stars};
 
+//grossen function
 fn table3(characters: &str, seed: u64) -> Vec<Vec<Vec<String>>> {
     let characters: Vec<String> = characters.chars().map(|c| c.to_string()).collect();
     let len = characters.len();
