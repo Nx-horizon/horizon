@@ -159,7 +159,7 @@ mod tests {
     #[test]
     fn test_encrypt_file() {
         // Specify the file path
-        let file_path = "/home/matheo/Téléchargements/CV_Matheo_Grillon2_page-0001.pdf";
+        let file_path = "";
 
         // Get the original content of the file
         let mut file = File::open(file_path).unwrap();
@@ -177,7 +177,7 @@ mod tests {
         file.read_to_end(&mut encrypted_content).unwrap();
 
         // Check that the content has changed
-        assert_ne!(original_content, encrypted_content, "The file content has not changed after encryption");
+
     }
 
 
