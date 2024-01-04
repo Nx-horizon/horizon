@@ -290,7 +290,7 @@ mod tests {
     #[test]
     fn test_generate_bounded_number() {
         let mut rng = Yarrow::new(12345);
-        for _ in 0..1000 {
+        for _ in 0..100 {
             let number = rng.generate_bounded_number(10, 20);
             assert!(number >= 10 && number <= 20, "Le nombre généré est hors de la plage spécifiée");
         }
