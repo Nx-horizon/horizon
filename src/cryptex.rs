@@ -1,5 +1,7 @@
 use std::collections::HashMap;
 use std::error::Error;
+use std::fs::File;
+use std::io::{Read, Write};
 use rand::prelude::SliceRandom;
 use rand::rngs::StdRng;
 use rand::SeedableRng;
@@ -95,8 +97,31 @@ pub(crate) fn decrypt3(cipher_text: &[String], key1: &str, key2: &str, character
     plain_text = plain_text.replace('^', "");
     Ok(plain_text)
 }
+
+fn xor_crypt3(input: &mut [u8], key: &[u8]) {
+    for (i, byte) in input.iter_mut().enumerate() {
+        *byte ^= key[i % key.len()];
+    }
+}
+pub fn encrypt_file(file_path: &str, key: &[u8]) -> Result<(), Box<dyn Error>> {
+    // Read the file content
+    let mut file = File::open(file_path)?;
+    let mut content = Vec::new();
+    file.read_to_end(&mut content)?;
+
+    // Perform XOR encryption
+    xor_crypt3(&mut content, key);
+
+    // Write the encrypted content back to the file
+    let mut file = File::create(file_path)?;
+    file.write_all(&content)?;
+
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
+    use crate::kdfwagen::kdfwagen;
     use super::*;
 
     #[test]
@@ -129,6 +154,30 @@ mod tests {
             }
             Err(e) => panic!("Encryption failed with error: {:?}", e),
         }
+    }
+
+    #[test]
+    fn test_encrypt_file() {
+        // Specify the file path
+        let file_path = "/home/matheo/Téléchargements/CV_Matheo_Grillon2_page-0001.pdf";
+
+        // Get the original content of the file
+        let mut file = File::open(file_path).unwrap();
+        let mut original_content = Vec::new();
+        file.read_to_end(&mut original_content).unwrap();
+
+        // Encrypt the file
+        let key_vec = kdfwagen(b"password", b"salt", 100);
+        println!("Key: {:?}", key_vec);
+        encrypt_file(file_path, &key_vec).unwrap();
+
+        // Get the encrypted content of the file
+        let mut file = File::open(file_path).unwrap();
+        let mut encrypted_content = Vec::new();
+        file.read_to_end(&mut encrypted_content).unwrap();
+
+        // Check that the content has changed
+        assert_ne!(original_content, encrypted_content, "The file content has not changed after encryption");
     }
 
 
