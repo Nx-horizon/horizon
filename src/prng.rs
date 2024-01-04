@@ -252,6 +252,7 @@ fn shuffle<T>(items: &mut [T]) {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::HashMap;
     use super::*;
 
     #[test]
@@ -289,10 +290,23 @@ mod tests {
     }
     #[test]
     fn test_generate_bounded_number() {
-        let mut rng = Yarrow::new(12345);
+        let mut rng = Yarrow::new(SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs());
+        let mut distribution_counts = HashMap::new();
+
         for _ in 0..100 {
             let number = rng.generate_bounded_number(10, 20);
+
+            // Mettez à jour le compteur de distribution
+            let count = distribution_counts.entry(number).or_insert(0);
+            *count += 1;
+
             assert!(number >= 10 && number <= 20, "Le nombre généré est hors de la plage spécifiée");
+        }
+
+        // Afficher la répartition des valeurs
+        println!("Répartition des valeurs générées :");
+        for (value, count) in &distribution_counts {
+            println!("Valeur {}: {} fois", value, count);
         }
     }
 
