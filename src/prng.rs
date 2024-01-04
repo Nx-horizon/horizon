@@ -319,4 +319,14 @@ mod tests {
         items.sort();
         assert_eq!(items, original, "Tous les éléments d'origine ne sont pas présents après le mélange");
     }
+
+    #[test]
+    fn test_shuffle_string() {
+        let mut s = "Hello, World!".chars().collect::<Vec<_>>();
+        let original = s.clone().into_iter().collect::<String>();
+        shuffle(&mut s);
+        let shuffled = s.into_iter().collect::<String>();
+        println!("shuffled: {}", shuffled);
+        assert_ne!(shuffled, original, "The string was not shuffled");
+    }
 }
