@@ -65,7 +65,7 @@ impl Yarrow {
     fn add_entropy(&mut self, entropy: u64) {
         let entropy_bytes = entropy.to_be_bytes();
         let mut hasher = Sha3_512::new();
-        hasher.update(&entropy_bytes);
+        hasher.update(entropy_bytes);
         let hash = hasher.finalize();
         self.pool.extend(hash.iter().copied());
     }
@@ -138,7 +138,7 @@ impl Yarrow {
 
         let mut hasher = Sha3_512::new();
         hasher.update(&self.pool.make_contiguous());
-        hasher.update(&entropy_bytes);
+        hasher.update(entropy_bytes);
 
         let hash = hasher.finalize();
         self.pool = VecDeque::from(hash.as_slice().to_vec());
