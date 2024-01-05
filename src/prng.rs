@@ -290,10 +290,10 @@ mod tests {
     }
     #[test]
     fn test_generate_bounded_number() {
-        let mut rng = Yarrow::new(SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs());
+        let mut rng = Yarrow::new(SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos() as u64);
         let mut distribution_counts = HashMap::new();
 
-        for _ in 0..100 {
+        for _ in 0..1000 {
             let number = rng.generate_bounded_number(10, 20);
 
             // Mettez à jour le compteur de distribution
