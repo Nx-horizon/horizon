@@ -405,10 +405,19 @@ fn xor_crypt(key: &[u8], data: &[u8]) -> Vec<u8> {
     data.par_iter().enumerate().map(|(i, &byte)| byte ^ key[i % key_len]).collect()
 }
 
+fn localization() -> &'static str {
+    let user_lang = whoami::lang().collect::<String>();
+    match user_lang.as_str() {
+        "fr" => "15^,&X_.w4Uek[?zv>|LOi9;83tgVxCdsrGHj#Ky+<hPQSR@nMDB2Z{cfI0l6-F}7EW$%Ybq'Jo=~:\"](Aa/p!uTN)*`m ",
+        "ar" => " ب ت ث ج ح خ د ذ ر ز س ش ص ض ط ظ ع غ ف ق ك ل م ن ١٢٣٤٥٦٧٨٩٠ ي0123456789!@#$%^&*()_+-={}[]<>?/|.,:;\"'`~ ",
+        "el" => "αΑΒΓΔΕΖΗΘΙΚΛΜΝΞΟΠΡΣΤΥΦΧΨΩαβγδεζηθικλμνξοπρστυφχψω0123456789!@#$%^&*()_+-={}[]<>?/|.,:;\"'`~ ",
+        _ => "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*()_+-={}[]<>?/|.,:;\"'`~ ",
+    }
+}
 fn main() {
     let plain_text = "Le message est a une faible entropie : il est compose de peu de caracteres distincts";
 
-    let characters = "15^,&X_.w4Uek[?zv>|LOi9;83tgVxCdsrGHj#Ky+<hPQSR@nMDB2Z{cfI0l6-F}7EW$%Ybq'Jo=~:\"](Aa/p!uTN)*`m ";
+    let characters = localization();
 
     let result = generate_key();
 
