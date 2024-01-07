@@ -315,7 +315,7 @@ pub(crate) fn encrypt(plain_text: &str, key1: &str, key2: &str, characters: &str
     }
     let xor = xor_crypt(&kdfwagen(password.as_bytes(), get_salt().as_bytes(), 30), cipher_text.as_bytes());
 
-    Ok(xor)
+    Ok(shift_bits(xor))
 }
 /// Decrypts a cipher text using a custom decryption algorithm based on keys, character set, and a password.
 ///
@@ -360,7 +360,7 @@ pub(crate) fn decrypt(cipher_text: Vec<u8>, key1: &str, key2: &str, characters: 
     characters.chars().enumerate().for_each(|(i, c)| {
         char_positions.insert(c, i);
     });
-
+    let cipher_text = unshift_bits(cipher_text);
     let xor = xor_crypt(&kdfwagen(password.as_bytes(), get_salt().as_bytes(), 30), &cipher_text);
     let cipher_text = String::from_utf8_lossy(&xor).into_owned();
 
@@ -414,6 +414,22 @@ fn localization() -> &'static str {
         _ => "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*()_+-={}[]<>?/|.,:;\"'`~ ",
     }
 }
+
+pub fn shift_bits(cipher_text: Vec<u8>) -> Vec<u8> {
+    cipher_text.par_iter().enumerate().map(|(i, &byte)| {
+        let shift_amount = i % 8;
+        byte.rotate_left(shift_amount as u32)
+    }).collect()
+}
+
+pub fn unshift_bits(cipher_text: Vec<u8>) -> Vec<u8> {
+    cipher_text.par_iter().enumerate().map(|(i, &byte)| {
+        let shift_amount = i % 8;
+        byte.rotate_right(shift_amount as u32)
+    }).collect()
+}
+
+
 fn main() {
     let plain_text = "Le message est a une faible entropie : il est compose de peu de caracteres distincts";
 
