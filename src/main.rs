@@ -293,7 +293,12 @@ fn insert_random_stars(word: &str) -> String {
 /// ```
 pub(crate) fn encrypt(plain_text: &str, key1: &str, key2: &str, characters: &str, password: &str) -> Result<Vec<u8>, SystemTrayError> {
     let plain_text_with_stars = insert_random_stars(plain_text);
-    let table = table2(characters, (addition_chiffres(key2) * addition_chiffres(key1)) as u64);
+
+    let val1 = addition_chiffres(key2);
+    let val2 = addition_chiffres(key1);
+
+    let seed = (val1 * val2) as u64;
+    let table = table2(characters, seed);
     let mut char_positions = HashMap::with_capacity(characters.len());
     characters.chars().enumerate().for_each(|(i, c)| {
         char_positions.insert(c, i);
@@ -315,7 +320,7 @@ pub(crate) fn encrypt(plain_text: &str, key1: &str, key2: &str, characters: &str
     }
     let xor = xor_crypt(&kdfwagen(password.as_bytes(), get_salt().as_bytes(), 30), cipher_text.as_bytes());
 
-    Ok(shift_bits(xor))
+    Ok(shift_bits2(xor, seed as u8))
 }
 /// Decrypts a cipher text using a custom decryption algorithm based on keys, character set, and a password.
 ///
@@ -355,12 +360,13 @@ pub(crate) fn encrypt(plain_text: &str, key1: &str, key2: &str, characters: &str
 /// }
 /// ```
 pub(crate) fn decrypt(cipher_text: Vec<u8>, key1: &str, key2: &str, characters: &str, password: &str) -> Result<String, SystemTrayError> {
-    let table =  table2(characters, (addition_chiffres(key2) * addition_chiffres(key1)) as u64);
+    let seed = (addition_chiffres(key2) * addition_chiffres(key1)) as u64;
+    let table =  table2(characters, seed);
     let mut char_positions = HashMap::with_capacity(characters.len());
     characters.chars().enumerate().for_each(|(i, c)| {
         char_positions.insert(c, i);
     });
-    let cipher_text = unshift_bits(cipher_text);
+    let cipher_text = unshift_bits2(cipher_text, seed as u8);
     let xor = xor_crypt(&kdfwagen(password.as_bytes(), get_salt().as_bytes(), 30), &cipher_text);
     let cipher_text = String::from_utf8_lossy(&xor).into_owned();
 
@@ -429,6 +435,23 @@ pub fn unshift_bits(cipher_text: Vec<u8>) -> Vec<u8> {
     }).collect()
 }
 
+// Fonction pour décaler les bits (chiffrement)
+pub fn shift_bits2(cipher_text: Vec<u8>, key: u8) -> Vec<u8> {
+    cipher_text.par_iter().enumerate().map(|(i, &byte)| {
+        let shift_amount = i % 8;
+        let rotated_byte = byte.rotate_left(shift_amount as u32);
+        rotated_byte ^ key
+    }).collect()
+}
+
+// Fonction pour décaler les bits inverse (déchiffrement)
+pub fn unshift_bits2(cipher_text: Vec<u8>, key: u8) -> Vec<u8> {
+    cipher_text.par_iter().enumerate().map(|(i, &byte)| {
+        let shift_amount = i % 8;
+        let rotated_byte = (byte ^ key).rotate_right(shift_amount as u32);
+        rotated_byte
+    }).collect()
+}
 
 fn main() {
     let plain_text = "Le message est a une faible entropie : il est compose de peu de caracteres distincts";
@@ -565,4 +588,21 @@ mod tests {
         assert_eq!(result, Some(expected.to_string()));
     }
 
+    #[test]
+    fn test_shift_unshift_bits2() {
+        let original_data = vec![1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
+        let key = 5;
+
+        // Test shift_bits2
+        let shifted_data = shift_bits2(original_data.clone(), key);
+
+        // Ensure that the shifted data is not equal to the original data
+        assert_ne!(shifted_data, original_data);
+
+        // Test unshift_bits2
+        let unshifted_data = unshift_bits2(shifted_data, key);
+
+        // Ensure that the unshifted data is equal to the original data
+        assert_eq!(unshifted_data, original_data);
+    }
 }
