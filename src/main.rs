@@ -320,7 +320,7 @@ pub(crate) fn encrypt(plain_text: &str, key1: &str, key2: &str, characters: &str
     }
     let xor = xor_crypt(&kdfwagen(password.as_bytes(), get_salt().as_bytes(), 30), cipher_text.as_bytes());
 
-    Ok(shift_bits2(xor, seed as u8))
+    Ok(shift_bits(xor, seed as u8))
 }
 /// Decrypts a cipher text using a custom decryption algorithm based on keys, character set, and a password.
 ///
@@ -366,7 +366,7 @@ pub(crate) fn decrypt(cipher_text: Vec<u8>, key1: &str, key2: &str, characters: 
     characters.chars().enumerate().for_each(|(i, c)| {
         char_positions.insert(c, i);
     });
-    let cipher_text = unshift_bits2(cipher_text, seed as u8);
+    let cipher_text = unshift_bits(cipher_text, seed as u8);
     let xor = xor_crypt(&kdfwagen(password.as_bytes(), get_salt().as_bytes(), 30), &cipher_text);
     let cipher_text = String::from_utf8_lossy(&xor).into_owned();
 
@@ -421,36 +421,25 @@ fn localization() -> &'static str {
     }
 }
 
-pub fn shift_bits(cipher_text: Vec<u8>) -> Vec<u8> {
-    cipher_text.par_iter().enumerate().map(|(i, &byte)| {
-        let shift_amount = i % 8;
-        byte.rotate_left(shift_amount as u32)
-    }).collect()
-}
-
-pub fn unshift_bits(cipher_text: Vec<u8>) -> Vec<u8> {
-    cipher_text.par_iter().enumerate().map(|(i, &byte)| {
-        let shift_amount = i % 8;
-        byte.rotate_right(shift_amount as u32)
-    }).collect()
-}
-
 // Fonction pour décaler les bits (chiffrement)
-pub fn shift_bits2(cipher_text: Vec<u8>, key: u8) -> Vec<u8> {
-    cipher_text.par_iter().enumerate().map(|(i, &byte)| {
+pub fn shift_bits(cipher_text: Vec<u8>, key: u8) -> Vec<u8> {
+    let xor_data = xor_crypt(&[key], &cipher_text);
+    xor_data.par_iter().enumerate().map(|(i, &byte)| {
         let shift_amount = i % 8;
         let rotated_byte = byte.rotate_left(shift_amount as u32);
-        rotated_byte ^ key
-    }).collect()
+        rotated_byte
+    }).collect::<Vec<u8>>() // Collect into a Vec<u8>
 }
 
 // Fonction pour décaler les bits inverse (déchiffrement)
-pub fn unshift_bits2(cipher_text: Vec<u8>, key: u8) -> Vec<u8> {
-    cipher_text.par_iter().enumerate().map(|(i, &byte)| {
+pub fn unshift_bits(cipher_text: Vec<u8>, key: u8) -> Vec<u8> {
+    let shifted_data = cipher_text.par_iter().enumerate().map(|(i, &byte)| {
         let shift_amount = i % 8;
-        let rotated_byte = (byte ^ key).rotate_right(shift_amount as u32);
+        let rotated_byte = byte.rotate_right(shift_amount as u32);
         rotated_byte
-    }).collect()
+    }).collect::<Vec<u8>>(); // Collect into a Vec<u8>
+
+    xor_crypt(&[key], &shifted_data)
 }
 
 fn main() {
@@ -594,13 +583,13 @@ mod tests {
         let key = 5;
 
         // Test shift_bits2
-        let shifted_data = shift_bits2(original_data.clone(), key);
+        let shifted_data = shift_bits(original_data.clone(), key);
 
         // Ensure that the shifted data is not equal to the original data
         assert_ne!(shifted_data, original_data);
 
         // Test unshift_bits2
-        let unshifted_data = unshift_bits2(shifted_data, key);
+        let unshifted_data = unshift_bits(shifted_data, key);
 
         // Ensure that the unshifted data is equal to the original data
         assert_eq!(unshifted_data, original_data);
