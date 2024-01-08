@@ -248,7 +248,7 @@ fn insert_random_stars(word: &str) -> String {
     let mut indices: Vec<usize> = (0..=word_chars.len()).collect();
     indices.shuffle(&mut rng);
 
-    for &index in indices.iter().take(num_stars) {
+    for index in indices.into_iter().take(num_stars) {
         word_chars.insert(index, stars.pop().unwrap());
     }
 
@@ -321,7 +321,6 @@ pub(crate) fn encrypt(plain_text: &str, key1: &str, key2: &str, characters: &str
     let xor = xor_crypt(&kdfwagen(password.as_bytes(), get_salt().as_bytes(), 30), cipher_text.as_bytes());
 
     let vz = kdfwagen(&[(val1+val2) as u8,(val1*val2) as u8, (val1%val2) as u8, (val1-val2) as u8, seed as u8], get_salt().as_bytes(), 10);
-    println!("vz {:?}", vz);
     Ok(shift_bits(xor, &vz))
 }
 /// Decrypts a cipher text using a custom decryption algorithm based on keys, character set, and a password.
