@@ -15,7 +15,7 @@ use rayon::prelude::*;
 use crate::kdfwagen::kdfwagen;
 use crate::systemtrayerror::SystemTrayError;
 
-//v 0.3.94
+//v 0.5.12
 /// Generates a 3D table of char based on the input character set and a provided seed.
 ///
 /// # Parameters
