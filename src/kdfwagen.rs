@@ -1,4 +1,4 @@
-use sha3::{Sha3_512, Digest};
+use sha3::{Digest, Sha3_512};
 /// Computes the Hash-based Message Authentication Code (HMAC) using the SHA3-512 hashing algorithm.
 ///
 /// # Parameters
@@ -20,7 +20,6 @@ use sha3::{Sha3_512, Digest};
 /// ```
 fn hmac(key: &[u8], message: &[u8]) -> Vec<u8> {
     const BLOCK_SIZE: usize = 128;
-
 
     let mut adjusted_key = if key.len() > BLOCK_SIZE {
         let mut hasher = Sha3_512::new();
@@ -71,7 +70,6 @@ pub(crate) fn kdfwagen(password: &[u8], salt: &[u8], iterations: usize) -> Vec<u
     const PRF_OUTPUT_SIZE: usize = 64;
     const KEY_LENGTH: usize = 512;
 
-
     let mut result = Vec::new();
     let mut block_count = (KEY_LENGTH + PRF_OUTPUT_SIZE - 1) / PRF_OUTPUT_SIZE;
 
@@ -85,13 +83,12 @@ pub(crate) fn kdfwagen(password: &[u8], salt: &[u8], iterations: usize) -> Vec<u
 
         let mut u = hmac(password, &block);
 
-        let mut xor_result = u.clone();
         for _ in 2..=iterations {
-            u = hmac(password, &u);
-            xor_result.iter_mut().zip(u.iter()).for_each(|(a, b)| *a ^= b);
+            let x = hmac(password, &u);
+            u.iter_mut().zip(x.iter()).for_each(|(a, b)| *a ^= b);
         }
 
-        result.extend_from_slice(&xor_result[..std::cmp::min(PRF_OUTPUT_SIZE, KEY_LENGTH)]);
+        result.extend_from_slice(&u[..std::cmp::min(PRF_OUTPUT_SIZE, KEY_LENGTH)]);
     }
 
     result.resize(KEY_LENGTH, 0);
