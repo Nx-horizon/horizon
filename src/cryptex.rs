@@ -13,8 +13,8 @@ fn table3(size: u32, seed: u64) -> Vec<Vec<Vec<u8>>> {
     let mut rng = StdRng::seed_from_u64(seed);
 
     let mut characters: Vec<u8> = (0..size).map(|_| {
-        let random_number = rng.gen::<u8>() % 128;
-        random_number
+        let random_number = rng.gen::<u8>();
+        return random_number;
     }).collect();
     
     let len: usize = characters.len();
