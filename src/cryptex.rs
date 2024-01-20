@@ -12,14 +12,10 @@ use crate::{addition_chiffres, insert_random_stars};
 fn table3(size: u32, seed: u64) -> Vec<Vec<Vec<u8>>> {
     let mut rng = StdRng::seed_from_u64(seed);
 
-    let mut characters: Vec<u8> = (0..size).map(|_| {
-        let random_number = rng.gen::<u8>();
-        return random_number;
-    }).collect();
-    
-    let len: usize = characters.len();
+    let mut characters: Vec<u8> = (0..=255).collect();
 
     characters.shuffle(&mut rng);
+    let len: usize = size as usize;
 
     return (0..len).into_par_iter().map(|i| {
         (0..len).into_par_iter().map(|j| {
@@ -29,6 +25,10 @@ fn table3(size: u32, seed: u64) -> Vec<Vec<Vec<u8>>> {
             }).collect::<Vec<u8>>()
         }).collect::<Vec<Vec<u8>>>()
     }).collect::<Vec<Vec<Vec<u8>>>>();
+}
+
+fn get_salt() -> Vec<u8> {
+    return (whoami::username() + &whoami::hostname() + &whoami::distro()).as_bytes().to_vec();
 }
 
 // pub(crate) fn encrypt3(plain_text: &str, key1: &str, key2: &str, characters: &str) -> Result<Vec<String>, Box<dyn Error>> {
@@ -145,6 +145,13 @@ mod tests {
             println!("");
             println!("");
         }
+    }
+
+    #[test]
+    fn test_get_salt() {
+        let salt = get_salt();
+
+        println!("Salt: {:?}", salt);
     }
 
     // #[test]
