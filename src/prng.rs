@@ -1,4 +1,5 @@
 use std::collections::VecDeque;
+use std::io::Read;
 use std::sync::Mutex;
 use std::time::{SystemTime, UNIX_EPOCH};
 use sha3::{Sha3_512, Digest};
@@ -41,16 +42,36 @@ impl Yarrow {
         }
     }
 
-    fn add_entropy(&self, entropy: u64) {
+    fn add_entropy(&self) {
+
+        let temp_path = "/sys/class/thermal/thermal_zone0/temp";
+        let temp_data = std::fs::read_to_string(temp_path).expect("Could not read temperature");
+        let temp = temp_data.trim().parse::<u64>().expect("Could not parse temperature");
+
+        let time = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("Time went backwards")
+            .as_nanos() as u64;
+
+        let pid = std::process::id();
+
+        let mut file = std::fs::File::open("/dev/urandom").expect("Could not open /dev/urandom");
+        let mut buffer = [0; 8];
+        file.read_exact(&mut buffer).expect("Could not read from /dev/urandom");
+        let random = u64::from_ne_bytes(buffer);
+
         let mut pool = self.pool.lock().unwrap();
         if pool.len() >= MAX_POOL_SIZE {
             pool.pop_front();
         }
-        let entropy_bytes = entropy.to_be_bytes();
-        let mut hasher = Sha3_512::new();
-        hasher.update(entropy_bytes);
-        let hash = hasher.finalize();
-        pool.extend(hash.iter().copied());
+        let entropy_sources = [temp, time, pid.into(), random];
+        for source in &entropy_sources {
+            let entropy_bytes = source.to_be_bytes();
+            let mut hasher = Sha3_512::new();
+            hasher.update(entropy_bytes);
+            let hash = hasher.finalize();
+            pool.extend(hash.iter().copied());
+        }
     }
 
     fn reseed(&mut self, new_seed: u64) {
@@ -62,7 +83,7 @@ impl Yarrow {
             }
             *bytes_since_reseed = 0;
         }
-    self.add_entropy(new_seed);
+    self.add_entropy();
     let combined_entropy = self.combine_entropy();
     self.mix_entropy(combined_entropy);
     let current_time = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs();
@@ -243,7 +264,7 @@ mod tests {
     fn test_add_entropy() {
         let mut rng = Yarrow::new(12345);
         let initial_state = rng.pool.lock().unwrap().clone();
-        rng.add_entropy(67890);
+        rng.add_entropy();
         assert_ne!(*rng.pool.lock().unwrap(), initial_state, "L'ajout d'entropie n'a pas modifié l'état du générateur");
     }
 
