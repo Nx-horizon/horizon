@@ -42,10 +42,9 @@ impl Yarrow {
         }
     }
 
-    fn add_entropy(&self) {
-
+    fn add_entropy(&self) -> std::io::Result<()> {
         let temp_path = "/sys/class/thermal/thermal_zone0/temp";
-        let temp_data = std::fs::read_to_string(temp_path).expect("Could not read temperature");
+        let temp_data = std::fs::read_to_string(temp_path)?;
         let temp = temp_data.trim().parse::<u64>().expect("Could not parse temperature");
 
         let time = SystemTime::now()
@@ -55,9 +54,9 @@ impl Yarrow {
 
         let pid = std::process::id();
 
-        let mut file = std::fs::File::open("/dev/urandom").expect("Could not open /dev/urandom");
+        let mut file = std::fs::File::open("/dev/urandom")?;
         let mut buffer = [0; 8];
-        file.read_exact(&mut buffer).expect("Could not read from /dev/urandom");
+        file.read_exact(&mut buffer)?;
         let random = u64::from_ne_bytes(buffer);
 
         let mut pool = self.pool.lock().unwrap();
@@ -72,7 +71,8 @@ impl Yarrow {
             let hash = hasher.finalize();
             pool.extend(hash.iter().copied());
         }
-    }
+        Ok(())
+}
 
     fn reseed(&mut self, new_seed: u64) {
         {
