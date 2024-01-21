@@ -6,29 +6,76 @@ use rand::prelude::SliceRandom;
 use rand::rngs::StdRng;
 use rand::{SeedableRng, Rng};
 use rayon::prelude::*;
+use sha3::{Digest, Sha3_512};
 use crate::{addition_chiffres, insert_random_stars};
 
 //grossen function
-fn table3(size: u32, seed: u64) -> Vec<Vec<Vec<u8>>> {
+fn table3(size: usize, seed: u64) -> Vec<Vec<Vec<u8>>> {
     let mut rng = StdRng::seed_from_u64(seed);
 
     let mut characters: Vec<u8> = (0..=255).collect();
 
     characters.shuffle(&mut rng);
-    let len: usize = size as usize;
+    let len: usize = size;
 
-    return (0..len).into_par_iter().map(|i| {
-        (0..len).into_par_iter().map(|j| {
-            (0..len).into_par_iter().map(|k| {
-                let idx: usize = (i + j + k) % len;
-                characters[idx]
-            }).collect::<Vec<u8>>()
-        }).collect::<Vec<Vec<u8>>>()
-    }).collect::<Vec<Vec<Vec<u8>>>>();
+
+    return (0..len).into_par_iter().chunks(1000).map(|i_chunk| {
+        i_chunk.into_par_iter().map(|i| {
+            (0..len).into_par_iter().chunks(1000).map(|j_chunk| {
+                j_chunk.into_par_iter().map(|j| {
+                    (0..len).map(|k| {
+                        let idx: usize = (i + j + k) % len;
+                        characters[idx]
+                    }).collect::<Vec<u8>>()
+                }).collect::<Vec<Vec<u8>>>()
+            }).flatten().collect::<Vec<Vec<u8>>>()
+        }).collect::<Vec<Vec<Vec<u8>>>>()
+    }).flatten().collect::<Vec<Vec<Vec<u8>>>>();
 }
 
 fn get_salt() -> Vec<u8> {
     return (whoami::username() + &whoami::hostname() + &whoami::distro()).as_bytes().to_vec();
+}
+
+fn stable_indices(word_len: usize, shift: usize) -> Vec<usize> {
+    let mut indices: Vec<usize> = (0..word_len).collect();
+
+    indices.sort_unstable_by(|&a, &b| {
+        let mut hasher = Sha3_512::new();
+        hasher.update(a.to_ne_bytes());
+        let hash_a = hasher.finalize();
+
+        let mut hasher = Sha3_512::new();
+        hasher.update(b.to_ne_bytes());
+        let hash_b = hasher.finalize();
+
+        return hash_a.cmp(&hash_b);
+    });
+
+    let shifted_indices: Vec<usize> = indices
+        .into_iter()
+        .cycle()
+        .skip(shift)
+        .take(word_len)
+        .collect();
+
+    return shifted_indices;
+}
+
+fn transpose(word: Vec<u8>, shift: usize) -> Option<Vec<u8>> {
+    let word_len = word.len();
+
+    if word_len == 0 || shift >= word_len {
+        return None;
+    }
+
+    let indices = stable_indices(word_len, shift);
+
+    let output: Vec<u8> = indices.par_iter()
+        .map(|&i| word[i])
+        .collect();
+
+    Some(output)
 }
 
 // pub(crate) fn encrypt3(plain_text: &str, key1: &str, key2: &str, characters: &str) -> Result<Vec<String>, Box<dyn Error>> {
@@ -152,6 +199,17 @@ mod tests {
         let salt = get_salt();
 
         println!("Salt: {:?}", salt);
+    }
+
+    #[test]
+    fn test_transpose() {
+        let word = "Hello World!".as_bytes().to_vec();
+
+        for shift in 0..word.len() {
+            let transposed = transpose(word.clone(), shift).unwrap();
+
+            println!("Shift: {}, Transposed: {:?}", shift, transposed);
+        }
     }
 
     // #[test]
