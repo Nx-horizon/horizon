@@ -41,7 +41,7 @@ fn hmac(key: &[u8], message: &[u8]) -> Vec<u8> {
     let ipad: Vec<u8> = adjusted_key.iter().map(|&b| b ^ 0x36).collect();
     let opad: Vec<u8> = adjusted_key.iter().map(|&b| b ^ 0x5C).collect();
 
-    let inner_input: Vec<u8> = ipad.into_iter().chain(message.iter().cloned()).collect();
+    let inner_input: Vec<u8> = ipad.into_iter().chain(message.into_iter().cloned()).collect();
 
     let inner_hash = Sha3_512::digest(inner_input);
 
