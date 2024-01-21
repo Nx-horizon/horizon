@@ -273,6 +273,10 @@ fn insert_random_stars(word: &str) -> String {
 
     word_chars.into_iter().collect()
 }
+
+fn vz_maker(val1: u32, val2:u32, seed: u64) -> Vec<u8>{
+    kdfwagen(&[(val1+val2) as u8,(val1*val2) as u8, (val1%val2) as u8, (val1-val2) as u8, seed as u8], get_salt().as_bytes(), 10)
+}
 /// Encrypts a plain text using a custom encryption algorithm based on keys, character set, and a password.
 ///
 /// # Parameters
@@ -339,7 +343,7 @@ pub(crate) fn encrypt(plain_text: &str, key1: &str, key2: &str, characters: &str
     }
     let xor = xor_crypt(&kdfwagen(password.as_bytes(), get_salt().as_bytes(), 30), cipher_text.as_bytes());
 
-    let vz = kdfwagen(&[(val1+val2) as u8,(val1*val2) as u8, (val1%val2) as u8, (val1-val2) as u8, seed as u8], get_salt().as_bytes(), 10);
+    let vz = vz_maker(val1, val2, seed);
     Ok(shift_bits(xor, &vz))
 }
 /// Decrypts a cipher text using a custom decryption algorithm based on keys, character set, and a password.
@@ -391,7 +395,7 @@ pub(crate) fn decrypt(cipher_text: Vec<u8>, key1: &str, key2: &str, characters: 
         char_positions.insert(c, i);
     });
 
-    let vz = kdfwagen(&[(val1+val2) as u8,(val1*val2) as u8, (val1%val2) as u8, (val1-val2) as u8, seed as u8], get_salt().as_bytes(), 10);
+    let vz = vz_maker(val1, val2, seed);
     let cipher_text = unshift_bits(cipher_text, &vz);
     let xor = xor_crypt(&kdfwagen(password.as_bytes(), get_salt().as_bytes(), 30), &cipher_text);
     let cipher_text = String::from_utf8_lossy(&xor).into_owned();
