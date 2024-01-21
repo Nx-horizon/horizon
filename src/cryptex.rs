@@ -2,12 +2,14 @@ use std::collections::HashMap;
 use std::error::Error;
 use std::fs::File;
 use std::io::{Read, Write};
+use mac_address::get_mac_address;
 use rand::prelude::SliceRandom;
 use rand::rngs::StdRng;
 use rand::{SeedableRng, Rng};
 use rayon::prelude::*;
 use sha3::{Digest, Sha3_512};
 use crate::{addition_chiffres, insert_random_stars};
+use crate::kdfwagen::kdfwagen;
 
 //grossen function
 fn table3(size: usize, seed: u64) -> Vec<Vec<Vec<u8>>> {
@@ -33,8 +35,8 @@ fn table3(size: usize, seed: u64) -> Vec<Vec<Vec<u8>>> {
     }).flatten().collect::<Vec<Vec<Vec<u8>>>>();
 }
 
-fn get_salt() -> Vec<u8> {
-    return (whoami::username() + &whoami::hostname() + &whoami::distro()).as_bytes().to_vec();
+fn get_salt() -> String {
+    whoami::username() + &whoami::hostname() + &whoami::distro()
 }
 
 fn stable_indices(word_len: usize, shift: usize) -> Vec<usize> {
@@ -75,7 +77,27 @@ fn transpose(word: Vec<u8>, shift: usize) -> Option<Vec<u8>> {
         .map(|&i| word[i])
         .collect();
 
-    Some(output)
+    return Some(output);
+}
+
+pub fn generate_key() -> Vec<u8> {
+    let returner = match get_mac_address() {
+        Ok(Some(mac_address)) => {
+            let mac_address_str = mac_address.to_string();
+            let returner = kdfwagen(mac_address_str.as_bytes(), get_salt().as_bytes(), 30);
+            hex::encode(returner).as_bytes().to_vec()
+        },
+        Ok(None) => {
+            println!("No MAC address found.");
+            Vec::new()
+        },
+        Err(e) => {
+            println!("Error: {}", e);
+            Vec::new()
+        },
+    };
+
+    return returner;
 }
 
 // pub(crate) fn encrypt3(plain_text: &str, key1: &str, key2: &str, characters: &str) -> Result<Vec<String>, Box<dyn Error>> {
@@ -210,6 +232,14 @@ mod tests {
 
             println!("Shift: {}, Transposed: {:?}", shift, transposed);
         }
+    }
+
+    #[test]
+    fn test_generate_key() {
+        let key = generate_key();
+
+        println!("Key size : {}", key.len());
+        println!("Key: {:?}", key);
     }
 
     // #[test]
