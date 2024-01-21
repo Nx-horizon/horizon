@@ -1,4 +1,9 @@
 use sha3::{Digest, Sha3_512};
+use rayon::iter::IntoParallelRefMutIterator;
+use rayon::iter::IndexedParallelIterator;
+use rayon::prelude::IntoParallelRefIterator;
+use rayon::iter::ParallelIterator;
+
 /// Computes the Hash-based Message Authentication Code (HMAC) using the SHA3-512 hashing algorithm.
 ///
 /// # Parameters
@@ -85,7 +90,7 @@ pub(crate) fn kdfwagen(password: &[u8], salt: &[u8], iterations: usize) -> Vec<u
 
         for _ in 2..=iterations {
             let x = hmac(password, &u);
-            u.iter_mut().zip(x.iter()).for_each(|(a, b)| *a ^= b);
+            u.par_iter_mut().zip(x.par_iter()).for_each(|(a, b)| *a ^= b);
         }
 
         result.extend_from_slice(&u[..std::cmp::min(PRF_OUTPUT_SIZE, KEY_LENGTH)]);
