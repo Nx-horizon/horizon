@@ -339,8 +339,8 @@ pub(crate) fn encrypt(plain_text: &str, key1: &str, key2: &str, characters: &str
     }
     let xor = xor_crypt(&kdfwagen(password.as_bytes(), get_salt().as_bytes(), 30), cipher_text.as_bytes());
 
-    //let vz = kdfwagen(&[(val1+val2) as u8,(val1*val2) as u8, (val1%val2) as u8, (val1-val2) as u8, seed as u8], get_salt().as_bytes(), 10);
-    Ok(xor)
+    let vz = kdfwagen(&[(val1+val2) as u8,(val1*val2) as u8, (val1%val2) as u8, (val1-val2) as u8, seed as u8], get_salt().as_bytes(), 10);
+    Ok(shift_bits(xor, &vz))
 }
 /// Decrypts a cipher text using a custom decryption algorithm based on keys, character set, and a password.
 ///
@@ -391,18 +391,23 @@ pub(crate) fn decrypt(cipher_text: Vec<u8>, key1: &str, key2: &str, characters: 
         char_positions.insert(c, i);
     });
 
-    //let vz = kdfwagen(&[(val1+val2) as u8,(val1*val2) as u8, (val1%val2) as u8, (val1-val2) as u8, seed as u8], get_salt().as_bytes(), 10);
-    //let cipher_text = unshift_bits(cipher_text, &vz);
+    let vz = kdfwagen(&[(val1+val2) as u8,(val1*val2) as u8, (val1%val2) as u8, (val1-val2) as u8, seed as u8], get_salt().as_bytes(), 10);
+    let cipher_text = unshift_bits(cipher_text, &vz);
     let xor = xor_crypt(&kdfwagen(password.as_bytes(), get_salt().as_bytes(), 30), &cipher_text);
     let cipher_text = String::from_utf8_lossy(&xor).into_owned();
 
+    let key1_chars: Vec<char> = key1.chars().collect();
+    let key2_chars: Vec<char> = key2.chars().collect();
+    let key1_len = key1_chars.len();
+    let key2_len = key2_chars.len();
+
     let mut plain_text = String::with_capacity(cipher_text.len());
     for (i, c) in cipher_text.chars().enumerate() {
-        let table_2d = key1.chars().nth(i % key1.len()).ok_or(SystemTrayError::new(5))? as usize % characters.len();
-        let row = key2.chars().nth(i % key2.len()).ok_or(SystemTrayError::new(5))? as usize % characters.len();
+        let table_2d = key1_chars[i % key1_len] as usize % characters.len();
+        let row = key2_chars[i % key2_len] as usize % characters.len();
 
         if table_2d < table.len() && row < table[table_2d].len() {
-            let col = table[table_2d][row].iter().position(|&x| x == c).ok_or(SystemTrayError::new(6))?;
+            let col = table[table_2d][row].par_iter().position_first(|&x| x == c).ok_or(SystemTrayError::new(6))?;
             let original_col = (col + characters.len()) % characters.len();
 
             plain_text.push(characters.chars().nth(original_col).ok_or(SystemTrayError::new(6))?);
