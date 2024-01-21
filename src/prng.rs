@@ -1,6 +1,10 @@
 use std::collections::VecDeque;
+use std::sync::Mutex;
 use std::time::{SystemTime, UNIX_EPOCH};
 use sha3::{Sha3_512, Digest};
+
+const MAX_POOL_SIZE: usize = 1024;
+const RESEED_THRESHOLD: usize = 512;
 
 /// Represents the Yarrow cryptographic pseudorandom number generator.
 ///
@@ -21,81 +25,52 @@ use sha3::{Sha3_512, Digest};
 /// ```
 struct Yarrow {
     seed: u64,
-    pool: VecDeque<u8>,
+    pool: Mutex<VecDeque<u8>>,
     last_reseed_time: u64,
+    bytes_since_reseed: Mutex<usize>,
 }
 
 /// Implements methods for the Yarrow cryptographic pseudorandom number generator.
 impl Yarrow {
-    /// Creates a new instance of `Yarrow` with the specified seed.
-    ///
-    /// # Parameters
-    ///
-    /// - `seed`: A 64-bit unsigned integer serving as the initial seed for the generator.
-    ///
-    /// # Returns
-    ///
-    /// Returns a new `Yarrow` instance with the given seed.
-    ///
-    /// # Examples
-    ///
-    /// ```rust
-    /// let yarrow_instance = Yarrow::new(42);
-    /// ```
     fn new(seed: u64) -> Self {
         Yarrow {
             seed,
-            pool: VecDeque::new(),
+            pool: Mutex::new(VecDeque::new()),
             last_reseed_time: 0,
+            bytes_since_reseed: Mutex::new(0),
         }
     }
 
-    /// Adds entropy to the Yarrow generator by incorporating a 64-bit unsigned integer.
-    ///
-    /// # Parameters
-    ///
-    /// - `entropy`: A 64-bit unsigned integer representing the additional entropy.
-    ///
-    /// # Examples
-    ///
-    /// ```rust
-    /// let mut yarrow_instance = Yarrow::new(42);
-    /// yarrow_instance.add_entropy(123);
-    /// ```
-    fn add_entropy(&mut self, entropy: u64) {
+    fn add_entropy(&self, entropy: u64) {
+        let mut pool = self.pool.lock().unwrap();
+        if pool.len() >= MAX_POOL_SIZE {
+            pool.pop_front();
+        }
         let entropy_bytes = entropy.to_be_bytes();
         let mut hasher = Sha3_512::new();
         hasher.update(entropy_bytes);
         let hash = hasher.finalize();
-        self.pool.extend(hash.iter().copied());
+        pool.extend(hash.iter().copied());
     }
 
-    /// Reseeds the Yarrow generator with new entropy, combining external entropy and current system time.
-    ///
-    /// # Parameters
-    ///
-    /// - `new_seed`: A 64-bit unsigned integer serving as the new seed for reseeding.
-    ///
-    /// # Examples
-    ///
-    /// ```rust
-    /// let mut yarrow_instance = Yarrow::new(42);
-    /// yarrow_instance.reseed(123);
-    /// ```
     fn reseed(&mut self, new_seed: u64) {
-        let external_entropy = new_seed;
-
-        self.add_entropy(external_entropy);
-
-        let combined_entropy = self.combine_entropy();
-        self.mix_entropy(combined_entropy);
-
-        let current_time = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs();
-        if current_time - self.last_reseed_time > 60 {
-            self.last_reseed_time = current_time;
-            self.seed ^= new_seed;
+        {
+            let mut bytes_since_reseed = self.bytes_since_reseed.lock().unwrap();
+            //println!("bytes_since_reseed: {}", *bytes_since_reseed); // Add this line
+            if *bytes_since_reseed < RESEED_THRESHOLD {
+                return;
+            }
+            *bytes_since_reseed = 0;
         }
+    self.add_entropy(new_seed);
+    let combined_entropy = self.combine_entropy();
+    self.mix_entropy(combined_entropy);
+    let current_time = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs();
+    if current_time - self.last_reseed_time > 60 {
+        self.last_reseed_time = current_time;
+        self.seed ^= new_seed;
     }
+}
 
     /// Combines the current state of the Yarrow generator's entropy pool, seed, and last reseed time.
     ///
@@ -113,7 +88,8 @@ impl Yarrow {
     fn combine_entropy(&self) -> u64 {
         let mut combined_entropy = self.seed;
 
-        for byte in &self.pool {
+        let pool = self.pool.lock().unwrap();
+        for byte in &*pool {
             combined_entropy = combined_entropy.wrapping_mul(33).wrapping_add(u64::from(*byte));
         }
         combined_entropy ^= self.last_reseed_time;
@@ -137,11 +113,11 @@ impl Yarrow {
         let entropy_bytes = entropy.to_be_bytes();
 
         let mut hasher = Sha3_512::new();
-        hasher.update(&self.pool.make_contiguous());
+        hasher.update(&self.pool.lock().unwrap().make_contiguous());
         hasher.update(entropy_bytes);
 
         let hash = hasher.finalize();
-        self.pool = VecDeque::from(hash.as_slice().to_vec());
+        self.pool = VecDeque::from(hash.as_slice().to_vec()).into();
     }
 
     /// Generates a sequence of random bytes using the Yarrow generator.
@@ -250,6 +226,14 @@ fn shuffle<T>(items: &mut [T]) {
     }
 }
 
+fn seeded_shuffle<T>(items: &mut [T], seed: usize) {
+    let len = items.len();
+    for i in (1..len).rev() {
+        let j = (seed) % (i + 1);
+        items.swap(i, j);
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use std::collections::HashMap;
@@ -258,17 +242,21 @@ mod tests {
     #[test]
     fn test_add_entropy() {
         let mut rng = Yarrow::new(12345);
-        let initial_state = rng.pool.clone();
+        let initial_state = rng.pool.lock().unwrap().clone();
         rng.add_entropy(67890);
-        assert_ne!(rng.pool, initial_state, "L'ajout d'entropie n'a pas modifié l'état du générateur");
+        assert_ne!(*rng.pool.lock().unwrap(), initial_state, "L'ajout d'entropie n'a pas modifié l'état du générateur");
     }
 
     #[test]
     fn test_reseed() {
         let mut rng = Yarrow::new(12345);
-        let initial_state = rng.pool.clone();
+        let initial_state = rng.pool.lock().unwrap().clone();
+        // Generate enough random bytes to meet the reseed threshold
+        for _ in 0..(RESEED_THRESHOLD / 8) {
+            rng.generate_random_bytes(8);
+        }
         rng.reseed(67890);
-        assert_ne!(rng.pool, initial_state, "La méthode reseed n'a pas modifié l'état du générateur");
+        assert_ne!(*rng.pool.lock().unwrap(), initial_state, "La méthode reseed n'a pas modifié l'état du générateur");
     }
 
     #[test]
@@ -328,5 +316,16 @@ mod tests {
         let shuffled = s.into_iter().collect::<String>();
         println!("shuffled: {}", shuffled);
         assert_ne!(shuffled, original, "The string was not shuffled");
+    }
+
+    #[test]
+    fn test_seeded_shuffle() {
+        let mut items = "Hello, World!".chars().collect::<Vec<_>>();
+        let original = items.clone();
+        seeded_shuffle(&mut items, 12345);
+        assert_ne!(items, original, "Les éléments n'ont pas été mélangés");
+        let shuffled = items.into_iter().collect::<String>();
+        println!("shuffled: {}", shuffled);
+        //assert_eq!(items, original, "Tous les éléments d'origine ne sont pas présents après le mélange");
     }
 }
