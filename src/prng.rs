@@ -1,8 +1,11 @@
-use std::collections::VecDeque;
-use std::io::Read;
+use std::collections::{HashSet, VecDeque};
 use std::sync::Mutex;
 use std::time::{SystemTime, UNIX_EPOCH};
 use sha3::{Sha3_512, Digest};
+
+
+use sysinfo::System;
+
 
 const MAX_POOL_SIZE: usize = 1024;
 const RESEED_THRESHOLD: usize = 512;
@@ -42,10 +45,27 @@ impl Yarrow {
         }
     }
 
-    fn add_entropy(&self) -> std::io::Result<()> {
-        let temp_path = "/sys/class/thermal/thermal_zone0/temp";
-        let temp_data = std::fs::read_to_string(temp_path)?;
-        let temp = temp_data.trim().parse::<u64>().expect("Could not parse temperature");
+    fn add_entropy(&self) -> Result<(), Box<dyn std::error::Error>> {
+        let sys = System::new_all();  // Create a new sysinfo System to get system information
+
+        let total_memory = sys.total_memory();
+        let used_memory = sys.used_memory();
+        let total_swap = sys.total_swap();
+        let nb_cpus = sys.cpus().len();
+
+
+        let mut pid_set = HashSet::new();
+        for (pid, _) in sys.processes() {
+            pid_set.insert(pid);
+        }
+
+        let pid_disk_usage: u64 = pid_set.into_iter().map(|&pid| {
+            if let Some(process) = sys.process(pid) {
+                process.disk_usage().total_read_bytes
+            } else {
+                0
+            }
+        }).sum();
 
         let time = SystemTime::now()
             .duration_since(UNIX_EPOCH)
@@ -54,16 +74,12 @@ impl Yarrow {
 
         let pid = std::process::id();
 
-        let mut file = std::fs::File::open("/dev/urandom")?;
-        let mut buffer = [0; 8];
-        file.read_exact(&mut buffer)?;
-        let random = u64::from_ne_bytes(buffer);
-
         let mut pool = self.pool.lock().unwrap();
         if pool.len() >= MAX_POOL_SIZE {
             pool.pop_front();
         }
-        let entropy_sources = [temp, time, pid.into(), random];
+
+        let entropy_sources = [time, pid.into(), total_memory, used_memory, total_swap, nb_cpus.try_into().unwrap(), pid_disk_usage];
         for source in &entropy_sources {
             let entropy_bytes = source.to_be_bytes();
             let mut hasher = Sha3_512::new();
@@ -72,7 +88,7 @@ impl Yarrow {
             pool.extend(hash.iter().copied());
         }
         Ok(())
-}
+    }
 
     fn reseed(&mut self, new_seed: u64) {
         {
@@ -255,16 +271,19 @@ fn seeded_shuffle<T>(items: &mut [T], seed: usize) {
     }
 }
 
+
 #[cfg(test)]
 mod tests {
     use std::collections::HashMap;
     use super::*;
+
 
     #[test]
     fn test_add_entropy() {
         let mut rng = Yarrow::new(12345);
         let initial_state = rng.pool.lock().unwrap().clone();
         rng.add_entropy();
+        println!("{:?} {:?}", initial_state, rng.pool.lock().unwrap());
         assert_ne!(*rng.pool.lock().unwrap(), initial_state, "L'ajout d'entropie n'a pas modifié l'état du générateur");
     }
 
