@@ -277,7 +277,7 @@ fn insert_random_stars(word: &str) -> String {
 }
 
 fn vz_maker(val1: u32, val2:u32, seed: u64) -> Vec<u8>{
-    kdfwagen(&[(val1+val2) as u8,(val1*val2) as u8, (val1%val2) as u8, (val1-val2) as u8, seed as u8], get_salt().as_bytes(), 10)
+    kdfwagen(&[(val1+val2) as u8,(val1*val2) as u8, (val1%val2) as u8, seed as u8], get_salt().as_bytes(), 10)
 }
 /// Encrypts a plain text using a custom encryption algorithm based on keys, character set, and a password.
 ///
