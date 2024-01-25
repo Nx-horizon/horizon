@@ -6,7 +6,7 @@ use sha3::{Sha3_512, Digest};
 
 use sysinfo::System;
 
-
+const MAX_RESEED_INTERVAL: u128 = 60;
 const MAX_POOL_SIZE: usize = 1024;
 const RESEED_THRESHOLD: usize = 512;
 
@@ -28,15 +28,15 @@ const RESEED_THRESHOLD: usize = 512;
 /// };
 /// ```
 struct Yarrow {
-    seed: u64,
+    seed: u128,
     pool: Mutex<VecDeque<u8>>,
-    last_reseed_time: u64,
+    last_reseed_time: u128,
     bytes_since_reseed: Mutex<usize>,
 }
 
 /// Implements methods for the Yarrow cryptographic pseudorandom number generator.
 impl Yarrow {
-    fn new(seed: u64) -> Self {
+    fn new(seed: u128) -> Self {
         Yarrow {
             seed,
             pool: Mutex::new(VecDeque::new()),
@@ -55,13 +55,13 @@ impl Yarrow {
 
 
         let mut pid_set = HashSet::new();
-        for (pid, _) in sys.processes() {
+        for pid in sys.processes().keys() {
             pid_set.insert(pid);
         }
 
-        let pid_disk_usage: u64 = pid_set.into_iter().map(|&pid| {
+        let pid_disk_usage: u128 = pid_set.into_iter().map(|&pid| {
             if let Some(process) = sys.process(pid) {
-                process.disk_usage().total_read_bytes
+                process.disk_usage().total_read_bytes as u128
             } else {
                 0
             }
@@ -70,7 +70,7 @@ impl Yarrow {
         let time = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .expect("Time went backwards")
-            .as_nanos() as u64;
+            .as_nanos();
 
         let pid = std::process::id();
 
@@ -79,7 +79,7 @@ impl Yarrow {
             pool.pop_front();
         }
 
-        let entropy_sources = [time, pid.into(), total_memory, used_memory, total_swap, nb_cpus.try_into().unwrap(), pid_disk_usage];
+        let entropy_sources = [time, pid.into(), total_memory as u128, used_memory as u128, total_swap as u128, nb_cpus.try_into().unwrap(), pid_disk_usage];
         for source in &entropy_sources {
             let entropy_bytes = source.to_be_bytes();
             let mut hasher = Sha3_512::new();
@@ -90,24 +90,32 @@ impl Yarrow {
         Ok(())
     }
 
-    fn reseed(&mut self, new_seed: u64) {
+    fn reseed(&mut self, new_seed: u128) {
         {
             let mut bytes_since_reseed = self.bytes_since_reseed.lock().unwrap();
-            //println!("bytes_since_reseed: {}", *bytes_since_reseed); // Add this line
+
             if *bytes_since_reseed < RESEED_THRESHOLD {
                 return;
             }
+
+            // Reset the byte counter early to allow reseeding based on adaptive conditions
             *bytes_since_reseed = 0;
+        } // <- bytes_since_reseed goes out of scope here
+
+        // Add entropy and combine it with the existing state
+        let _ = self.add_entropy();
+        let combined_entropy = self.combine_entropy();
+
+        // Continue with the mutable borrow after bytes_since_reseed is dropped
+        self.mix_entropy(combined_entropy);
+
+        // Update the seed periodically based on time
+        let current_time = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos();
+        if current_time - self.last_reseed_time > MAX_RESEED_INTERVAL {
+            self.last_reseed_time = current_time;
+            self.seed ^= new_seed;
         }
-    self.add_entropy();
-    let combined_entropy = self.combine_entropy();
-    self.mix_entropy(combined_entropy);
-    let current_time = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs();
-    if current_time - self.last_reseed_time > 60 {
-        self.last_reseed_time = current_time;
-        self.seed ^= new_seed;
     }
-}
 
     /// Combines the current state of the Yarrow generator's entropy pool, seed, and last reseed time.
     ///
@@ -122,12 +130,12 @@ impl Yarrow {
     /// let combined_entropy = yarrow_instance.combine_entropy();
     /// println!("{}", combined_entropy);
     /// ```
-    fn combine_entropy(&self) -> u64 {
+    fn combine_entropy(&self) -> u128 {
         let mut combined_entropy = self.seed;
 
         let pool = self.pool.lock().unwrap();
         for byte in &*pool {
-            combined_entropy = combined_entropy.wrapping_mul(33).wrapping_add(u64::from(*byte));
+            combined_entropy = combined_entropy.wrapping_mul(33).wrapping_add(u128::from(*byte));
         }
         combined_entropy ^= self.last_reseed_time;
         combined_entropy
@@ -146,7 +154,7 @@ impl Yarrow {
     /// let additional_entropy = 123;
     /// yarrow_instance.mix_entropy(additional_entropy);
     /// ```
-    fn mix_entropy(&mut self, entropy: u64) {
+    fn mix_entropy(&mut self, entropy: u128) {
         let entropy_bytes = entropy.to_be_bytes();
 
         let mut hasher = Sha3_512::new();
@@ -187,7 +195,7 @@ impl Yarrow {
         }
 
         let last_byte = random_bytes.last().copied().unwrap_or(0);
-        self.reseed(last_byte as u64);
+        self.reseed(last_byte as u128);
 
         random_bytes
     }
@@ -205,13 +213,13 @@ impl Yarrow {
     /// let random_number = yarrow_instance.generate_random_number();
     /// println!("{}", random_number);
     /// ```
-    fn generate_random_number(&mut self) -> u64 {
+    fn generate_random_number(&mut self) -> u128 {
         let random_bytes = self.generate_random_bytes(8);
 
-        let mut random_number: u64 = 0;
+        let mut random_number: u128 = 0;
 
         for &byte in &random_bytes {
-            random_number = (random_number << 8) | u64::from(byte);
+            random_number = (random_number << 8) | u128::from(byte);
         }
 
         random_number
@@ -235,7 +243,7 @@ impl Yarrow {
     /// let random_number = yarrow_instance.generate_bounded_number(10, 20);
     /// println!("{}", random_number);
     /// ```
-    fn generate_bounded_number(&mut self, min: u64, max: u64) -> u64 {
+    fn generate_bounded_number(&mut self, min: u128, max: u128) -> u128 {
         let random_number = self.generate_random_number();
 
         min + (random_number % (max - min + 1))
@@ -311,14 +319,14 @@ mod tests {
     fn test_printer(){
         let mut rng = Yarrow::new(12345);
         for _ in 0..10 {
-            rng.reseed(SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs());
+            rng.reseed(SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos());
             let random_bytes = rng.generate_random_number();
             println!("{:?}", random_bytes);
         }
     }
     #[test]
     fn test_generate_bounded_number() {
-        let mut rng = Yarrow::new(SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos() as u64);
+        let mut rng = Yarrow::new(SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos());
         let mut distribution_counts = HashMap::new();
 
         for _ in 0..1000 {
@@ -364,7 +372,7 @@ mod tests {
         let original = items.clone();
         seeded_shuffle(&mut items, 12345);
         assert_ne!(items, original, "Les éléments n'ont pas été mélangés");
-        let shuffled = items.into_iter().collect::<String>();
+        let shuffled = items.clone().into_iter().collect::<String>();
         println!("shuffled: {}", shuffled);
         //assert_eq!(items, original, "Tous les éléments d'origine ne sont pas présents après le mélange");
     }
