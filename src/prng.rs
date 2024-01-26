@@ -279,6 +279,27 @@ fn seeded_shuffle<T>(items: &mut [T], seed: usize) {
     }
 }
 
+////////// function test
+fn monobit_test(sequence: &[u8]) -> bool {
+    let total_bits = sequence.len() * 8;
+    let mut one_bits: i32 = 0;
+
+    for &byte in sequence {
+        for i in 0..8 {
+            one_bits = match one_bits.checked_add(((byte >> i) & 1) as i32) {
+                Some(v) => v,
+                None => return false, // or handle overflow in another way
+            };
+        }
+    }
+
+    let zero_bits = total_bits - one_bits as usize;
+    let difference = (one_bits as isize - zero_bits as isize).abs();
+
+    // The difference should be less than the square root of the total number of bits
+    difference < (total_bits as f64).sqrt() as isize
+}
+
 
 #[cfg(test)]
 mod tests {
@@ -375,5 +396,34 @@ mod tests {
         let shuffled = items.clone().into_iter().collect::<String>();
         println!("shuffled: {}", shuffled);
         //assert_eq!(items, original, "Tous les éléments d'origine ne sont pas présents après le mélange");
+    }
+
+    #[test]
+    fn test_generate_bounded_number_distribution() {
+        let mut rng = Yarrow::new(SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos());
+        let mut distribution_counts = HashMap::new();
+
+        for _ in 0..10000 {
+            let number = rng.generate_bounded_number(10, 20);
+
+            // Update the distribution counter
+            let count = distribution_counts.entry(number).or_insert(0);
+            *count += 1;
+
+            assert!(number >= 10 && number <= 20, "Generated number is outside the specified range");
+        }
+
+        // Check if the distribution is uniform
+        for count in distribution_counts.values() {
+            println!("count: {}", count);
+            assert!(*count >= 850 && *count <= 1000, "Distribution is not uniform");
+        }
+    }
+
+    #[test]
+    fn test_monobit() {
+        let mut rng = Yarrow::new(12345);
+        let sequence = rng.generate_random_bytes(1000);
+        assert!(monobit_test(&sequence), "La séquence générée n'a pas passé le test de monobit");
     }
 }
