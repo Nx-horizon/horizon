@@ -3,28 +3,25 @@ use std::error::Error;
 use std::fs::File;
 use std::io::{Read, Write};
 use mac_address::get_mac_address;
-use rand::prelude::SliceRandom;
-use rand::rngs::StdRng;
-use rand::{SeedableRng, Rng};
 use rayon::prelude::*;
 use sha3::{Digest, Sha3_512};
-use crate::{addition_chiffres, insert_random_stars};
-use crate::kdfwagen::kdfwagen;
+use crate::{addition_chiffres, insert_random_stars, kdfwagen};
+use crate::systemtrayerror::SystemTrayError;
+use sysinfo::System;
+
+use crate::prng;
 
 //grossen function
-fn table3(size: usize, seed: u64) -> Vec<Vec<Vec<u8>>> {
-    let mut rng = StdRng::seed_from_u64(seed);
-
+fn table3(size: usize, seed: usize) -> Vec<Vec<Vec<u8>>> {
     let mut characters: Vec<u8> = (0..=255).collect();
 
-    characters.shuffle(&mut rng);
+    prng::seeded_shuffle(&mut characters, seed);
     let len: usize = size;
-
 
     return (0..len).into_par_iter().chunks(1000).map(|i_chunk| {
         i_chunk.into_par_iter().map(|i| {
             (0..len).into_par_iter().chunks(1000).map(|j_chunk| {
-                j_chunk.into_par_iter().map(|j| {
+                j_chunk.into_par_iter().map(|j: usize| {
                     (0..len).map(|k| {
                         let idx: usize = (i + j + k) % len;
                         characters[idx]
@@ -35,8 +32,12 @@ fn table3(size: usize, seed: u64) -> Vec<Vec<Vec<u8>>> {
     }).flatten().collect::<Vec<Vec<Vec<u8>>>>();
 }
 
-fn get_salt() -> String {
+fn initial_get_salt() -> String {
     whoami::username() + &whoami::hostname() + &whoami::distro()
+}
+
+fn get_salt() -> String {
+    System::name().unwrap() + &System::host_name().unwrap() + &System::os_version().unwrap()  + &System::kernel_version().unwrap()
 }
 
 fn stable_indices(word_len: usize, shift: usize) -> Vec<usize> {
@@ -98,6 +99,17 @@ pub fn generate_key() -> Vec<u8> {
     };
 
     return returner;
+}
+
+// To do
+fn generate_key2(seed: &str) -> Result<String, SystemTrayError> {
+    if seed.len() < 10 {
+        return Err(SystemTrayError::new(4));
+    }
+
+    let seed = kdfwagen::kdfwagen(seed.as_bytes(), get_salt().as_bytes(), 30); //change salt by unique pc id
+
+    Ok(hex::encode(seed))
 }
 
 // pub(crate) fn encrypt3(plain_text: &str, key1: &str, key2: &str, characters: &str) -> Result<Vec<String>, Box<dyn Error>> {
@@ -219,7 +231,6 @@ mod tests {
     #[test]
     fn test_get_salt() {
         let salt = get_salt();
-
         println!("Salt: {:?}", salt);
     }
 

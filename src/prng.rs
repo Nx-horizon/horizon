@@ -27,7 +27,7 @@ const RESEED_THRESHOLD: usize = 512;
 ///     last_reseed_time: 0,
 /// };
 /// ```
-struct Yarrow {
+pub struct Yarrow {
     seed: u64,
     pool: Mutex<VecDeque<u8>>,
     last_reseed_time: u64,
@@ -36,7 +36,7 @@ struct Yarrow {
 
 /// Implements methods for the Yarrow cryptographic pseudorandom number generator.
 impl Yarrow {
-    fn new(seed: u64) -> Self {
+    pub fn new(seed: u64) -> Self {
         Yarrow {
             seed,
             pool: Mutex::new(VecDeque::new()),
@@ -45,7 +45,7 @@ impl Yarrow {
         }
     }
 
-    fn add_entropy(&self) -> Result<(), Box<dyn std::error::Error>> {
+    pub fn add_entropy(&self) -> Result<(), Box<dyn std::error::Error>> {
         let sys = System::new_all();  // Create a new sysinfo System to get system information
 
         let total_memory = sys.total_memory();
@@ -99,15 +99,15 @@ impl Yarrow {
             }
             *bytes_since_reseed = 0;
         }
-    self.add_entropy();
-    let combined_entropy = self.combine_entropy();
-    self.mix_entropy(combined_entropy);
-    let current_time = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs();
-    if current_time - self.last_reseed_time > 60 {
-        self.last_reseed_time = current_time;
-        self.seed ^= new_seed;
+        self.add_entropy();
+        let combined_entropy = self.combine_entropy();
+        self.mix_entropy(combined_entropy);
+        let current_time = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs();
+        if current_time - self.last_reseed_time > 60 {
+            self.last_reseed_time = current_time;
+            self.seed ^= new_seed;
+        }
     }
-}
 
     /// Combines the current state of the Yarrow generator's entropy pool, seed, and last reseed time.
     ///
@@ -263,7 +263,7 @@ fn shuffle<T>(items: &mut [T]) {
     }
 }
 
-fn seeded_shuffle<T>(items: &mut [T], seed: usize) {
+pub fn seeded_shuffle<T>(items: &mut [T], seed: usize) {
     let len = items.len();
     for i in (1..len).rev() {
         let j = (seed) % (i + 1);
