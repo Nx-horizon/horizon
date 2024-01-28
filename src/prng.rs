@@ -34,7 +34,6 @@ pub struct Yarrow {
     bytes_since_reseed: Mutex<usize>,
 }
 
-/// Implements methods for the Yarrow cryptographic pseudorandom number generator.
 impl Yarrow {
     pub fn new(seed: u128) -> Self {
         Yarrow {
@@ -117,19 +116,6 @@ impl Yarrow {
         }
     }
 
-    /// Combines the current state of the Yarrow generator's entropy pool, seed, and last reseed time.
-    ///
-    /// # Returns
-    ///
-    /// Returns a 64-bit unsigned integer representing the combined entropy.
-    ///
-    /// # Examples
-    ///
-    /// ```rust
-    /// let yarrow_instance = Yarrow::new(42);
-    /// let combined_entropy = yarrow_instance.combine_entropy();
-    /// println!("{}", combined_entropy);
-    /// ```
     fn combine_entropy(&self) -> u128 {
         let mut combined_entropy = self.seed;
 
@@ -141,19 +127,7 @@ impl Yarrow {
         combined_entropy
     }
 
-    /// Mixes additional entropy into the Yarrow generator's entropy pool using the SHA3-512 hashing algorithm.
-    ///
-    /// # Parameters
-    ///
-    /// - `entropy`: A 64-bit unsigned integer representing the additional entropy to be mixed.
-    ///
-    /// # Examples
-    ///
-    /// ```rust
-    /// let mut yarrow_instance = Yarrow::new(42);
-    /// let additional_entropy = 123;
-    /// yarrow_instance.mix_entropy(additional_entropy);
-    /// ```
+
     fn mix_entropy(&mut self, entropy: u128) {
         let entropy_bytes = entropy.to_be_bytes();
 
@@ -165,23 +139,6 @@ impl Yarrow {
         self.pool = VecDeque::from(hash.as_slice().to_vec()).into();
     }
 
-    /// Generates a sequence of random bytes using the Yarrow generator.
-    ///
-    /// # Parameters
-    ///
-    /// - `count`: The number of random bytes to generate.
-    ///
-    /// # Returns
-    ///
-    /// Returns a vector of unsigned 8-bit integers representing the generated random bytes.
-    ///
-    /// # Examples
-    ///
-    /// ```rust
-    /// let mut yarrow_instance = Yarrow::new(42);
-    /// let random_bytes = yarrow_instance.generate_random_bytes(16);
-    /// println!("{:?}", random_bytes);
-    /// ```
     fn generate_random_bytes(&mut self, count: usize) -> Vec<u8> {
         let mut random_bytes = Vec::with_capacity(count);
 
@@ -200,19 +157,6 @@ impl Yarrow {
         random_bytes
     }
 
-    /// Generates a random 64-bit unsigned integer using the Yarrow generator.
-    ///
-    /// # Returns
-    ///
-    /// Returns a 64-bit unsigned integer representing the generated random number.
-    ///
-    /// # Examples
-    ///
-    /// ```rust
-    /// let mut yarrow_instance = Yarrow::new(42);
-    /// let random_number = yarrow_instance.generate_random_number();
-    /// println!("{}", random_number);
-    /// ```
     fn generate_random_number(&mut self) -> u128 {
         let random_bytes = self.generate_random_bytes(8);
 
@@ -225,24 +169,7 @@ impl Yarrow {
         random_number
     }
 
-    /// Generates a random 64-bit unsigned integer within a specified range using the Yarrow generator.
-    ///
-    /// # Parameters
-    ///
-    /// - `min`: The minimum value of the generated number (inclusive).
-    /// - `max`: The maximum value of the generated number (inclusive).
-    ///
-    /// # Returns
-    ///
-    /// Returns a 64-bit unsigned integer within the specified range.
-    ///
-    /// # Examples
-    ///
-    /// ```rust
-    /// let mut yarrow_instance = Yarrow::new(42);
-    /// let random_number = yarrow_instance.generate_bounded_number(10, 20);
-    /// println!("{}", random_number);
-    /// ```
+
     pub fn generate_bounded_number(&mut self, min: u128, max: u128) -> u128 {
         let random_number = self.generate_random_number();
 
@@ -250,19 +177,6 @@ impl Yarrow {
     }
 }
 
-/// Shuffles the elements of a mutable slice using the Fisher-Yates algorithm with a time-based seed.
-///
-/// # Parameters
-///
-/// - `items`: A mutable slice of elements to be shuffled.
-///
-/// # Examples
-///
-/// ```rust
-/// let mut elements = vec![1, 2, 3, 4, 5];
-/// shuffle(&mut elements);
-/// println!("{:?}", elements);
-/// ```
 pub fn shuffle<T>(items: &mut [T]) {
     let len = items.len();
     for i in (1..len).rev() {
