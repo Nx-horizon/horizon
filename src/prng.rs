@@ -37,7 +37,7 @@ impl Yarrow {
         let nb_cpus = sys.cpus().len();
 
 
-        let pid_set: HashSet<&Pid> = sys.processes().keys().into_iter().map(|pid| pid).collect();
+        let pid_set: HashSet<&Pid> = sys.processes().keys().collect();
 
         let pid_disk_usage: u128 = pid_set.into_iter().map(|&pid| {
             if let Some(process) = sys.process(pid) {

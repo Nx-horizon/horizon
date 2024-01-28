@@ -113,7 +113,7 @@ fn generate_key2(seed: &str) -> Result<Vec<u8>, SystemTrayError> {
 }
 
 fn insert_random_stars(mut word: Vec<u8>) -> Vec<u8> {
-    let mut rng = Yarrow::new(SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos() as u128);
+    let mut rng = Yarrow::new(SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos());
     rng.add_entropy();
 
     let num_stars: usize = rng.generate_bounded_number((word.len()/2) as u128, (word.len()*2) as u128) as usize;
