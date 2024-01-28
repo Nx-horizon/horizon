@@ -27,7 +27,7 @@ const RESEED_THRESHOLD: usize = 512;
 ///     last_reseed_time: 0,
 /// };
 /// ```
-struct Yarrow {
+pub struct Yarrow {
     seed: u128,
     pool: Mutex<VecDeque<u8>>,
     last_reseed_time: u128,
@@ -36,7 +36,7 @@ struct Yarrow {
 
 /// Implements methods for the Yarrow cryptographic pseudorandom number generator.
 impl Yarrow {
-    fn new(seed: u128) -> Self {
+    pub fn new(seed: u128) -> Self {
         Yarrow {
             seed,
             pool: Mutex::new(VecDeque::new()),
@@ -45,7 +45,7 @@ impl Yarrow {
         }
     }
 
-    fn add_entropy(&self) -> Result<(), Box<dyn std::error::Error>> {
+    pub fn add_entropy(&self) -> Result<(), Box<dyn std::error::Error>> {
         let sys = System::new_all();  // Create a new sysinfo System to get system information
 
         let total_memory = sys.total_memory();
@@ -243,7 +243,7 @@ impl Yarrow {
     /// let random_number = yarrow_instance.generate_bounded_number(10, 20);
     /// println!("{}", random_number);
     /// ```
-    fn generate_bounded_number(&mut self, min: u128, max: u128) -> u128 {
+    pub fn generate_bounded_number(&mut self, min: u128, max: u128) -> u128 {
         let random_number = self.generate_random_number();
 
         min + (random_number % (max - min + 1))
@@ -263,7 +263,7 @@ impl Yarrow {
 /// shuffle(&mut elements);
 /// println!("{:?}", elements);
 /// ```
-fn shuffle<T>(items: &mut [T]) {
+pub fn shuffle<T>(items: &mut [T]) {
     let len = items.len();
     for i in (1..len).rev() {
         let j = (SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos() as usize) % (i + 1);
@@ -271,7 +271,7 @@ fn shuffle<T>(items: &mut [T]) {
     }
 }
 
-fn seeded_shuffle<T>(items: &mut [T], seed: usize) {
+pub fn seeded_shuffle<T>(items: &mut [T], seed: usize) {
     let len = items.len();
     for i in (1..len).rev() {
         let j = (seed) % (i + 1);
