@@ -289,6 +289,17 @@ mod tests {
         println!("Word: {:?}", word);
     }
 
+    #[test]
+    fn test_generate_all_8bit_values() {
+        let mut vec = Vec::new();
+        for i in 0..=255 {
+            vec.push(i as u8);
+        }
+
+        let s = String::from_utf8_lossy(&vec);
+        println!("{}", s);
+    }
+
     // #[test]
     // fn test_encrypt3_decrypt3() {
     //     let plain_text = "cest moi le le grand test du matin et je à suis content";

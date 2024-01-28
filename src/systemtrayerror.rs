@@ -37,6 +37,7 @@ impl SystemTrayError {
             5 => "Key is too short".to_string(),
             6 => "Character not found in character set".to_string(),
             7 => "Error when dividing by 8".to_string(),
+            8 => "Error no processus found".to_string(),
             _ => format!("Unknown error with code {}", code),
         };
 

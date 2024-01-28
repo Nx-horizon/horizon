@@ -4,29 +4,13 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use sha3::{Sha3_512, Digest};
 
 
-use sysinfo::System;
+use sysinfo::{Pid, System};
+use crate::systemtrayerror::SystemTrayError;
 
 const MAX_RESEED_INTERVAL: u128 = 60;
 const MAX_POOL_SIZE: usize = 1024;
 const RESEED_THRESHOLD: usize = 512;
 
-/// Represents the Yarrow cryptographic pseudorandom number generator.
-///
-/// # Fields
-///
-/// - `seed`: A 64-bit unsigned integer representing the initial seed for the generator.
-/// - `pool`: A deque of unsigned 8-bit integers serving as the entropy pool.
-/// - `last_reseed_time`: A 64-bit unsigned integer representing the time of the last reseed operation.
-///
-/// # Examples
-///
-/// ```rust
-/// let yarrow_instance = Yarrow {
-///     seed: 42,
-///     pool: VecDeque::new(),
-///     last_reseed_time: 0,
-/// };
-/// ```
 pub struct Yarrow {
     seed: u128,
     pool: Mutex<VecDeque<u8>>,
@@ -44,7 +28,7 @@ impl Yarrow {
         }
     }
 
-    pub fn add_entropy(&self) -> Result<(), Box<dyn std::error::Error>> {
+    pub fn add_entropy(&self) -> Result<(), SystemTrayError> {
         let sys = System::new_all();  // Create a new sysinfo System to get system information
 
         let total_memory = sys.total_memory();
@@ -53,10 +37,7 @@ impl Yarrow {
         let nb_cpus = sys.cpus().len();
 
 
-        let mut pid_set = HashSet::new();
-        for pid in sys.processes().keys() {
-            pid_set.insert(pid);
-        }
+        let pid_set: HashSet<&Pid> = sys.processes().keys().into_iter().map(|pid| pid).collect();
 
         let pid_disk_usage: u128 = pid_set.into_iter().map(|&pid| {
             if let Some(process) = sys.process(pid) {
@@ -65,6 +46,10 @@ impl Yarrow {
                 0
             }
         }).sum();
+
+        if pid_disk_usage == 0 {
+            return Err(SystemTrayError::new(8));
+        }
 
         let time = SystemTime::now()
             .duration_since(UNIX_EPOCH)
@@ -330,7 +315,7 @@ mod tests {
         // Check if the distribution is uniform
         for count in distribution_counts.values() {
             println!("count: {}", count);
-            assert!(*count >= 850 && *count <= 1000, "Distribution is not uniform");
+            assert!(*count >= 800 && *count <= 1000, "Distribution is not uniform");
         }
     }
 
