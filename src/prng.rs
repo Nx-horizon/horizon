@@ -4,7 +4,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use sha3::{Sha3_512, Digest};
 
 
-use sysinfo::{Pid, System};
+use sysinfo::{Networks, Pid, System};
 use crate::systemtrayerror::SystemTrayError;
 
 const MAX_RESEED_INTERVAL: u128 = 60;
@@ -35,6 +35,15 @@ impl Yarrow {
         let used_memory = sys.used_memory();
         let total_swap = sys.total_swap();
         let nb_cpus = sys.cpus().len();
+        let uptime = System::uptime() as u128;
+        let boot_time =  System::uptime() as u128;
+
+        let mut network_data = 0;
+        let networks = Networks::new_with_refreshed_list();
+        for (_, network) in &networks {
+            network_data += network.received() + network.total_received() + network.transmitted() + network.total_transmitted() + network.packets_received() + network.total_packets_received() + network.packets_transmitted() + network.total_packets_transmitted() + network.errors_on_received() + network.total_errors_on_received() + network.errors_on_transmitted();
+        }
+        println!("{network_data}");
 
 
         let pid_set: HashSet<&Pid> = sys.processes().keys().collect();
@@ -63,7 +72,9 @@ impl Yarrow {
             pool.pop_front();
         }
 
-        let entropy_sources = [time, pid.into(), total_memory as u128, used_memory as u128, total_swap as u128, nb_cpus.try_into().unwrap(), pid_disk_usage];
+        let mut entropy_sources = [time, pid.into(), total_memory as u128, used_memory as u128, total_swap as u128, nb_cpus.try_into().unwrap(), pid_disk_usage, uptime, boot_time, network_data as u128];
+        self.shuffle_array(&mut entropy_sources);
+        println!("{:?}", entropy_sources);
         for source in &entropy_sources {
             let entropy_bytes = source.to_be_bytes();
             let mut hasher = Sha3_512::new();
@@ -72,6 +83,17 @@ impl Yarrow {
             pool.extend(hash.iter().copied());
         }
         Ok(())
+    }
+
+    // Fonction pour mélanger un tableau
+    fn shuffle_array<T>(&self, array: &mut [T]) {
+        let mut rng = Yarrow::new(self.seed); // use generate random number here
+        rng.combine_entropy();
+        let len = array.len();
+        for i in (1..len).rev() {
+            let j = rng.generate_bounded_number(0, i as u128) as usize;
+            array.swap(i, j);
+        }
     }
 
     fn reseed(&mut self, new_seed: u128) {
@@ -324,5 +346,18 @@ mod tests {
         let mut rng = Yarrow::new(12345);
         let sequence = rng.generate_random_bytes(1000);
         assert!(monobit_test(&sequence), "La séquence générée n'a pas passé le test de monobit");
+    }
+
+    #[test]
+    fn test_info(){
+        use sysinfo::Networks;
+
+        let networks = Networks::new_with_refreshed_list();
+        for (interface_name, network) in &networks {
+            println!("[{interface_name}] {network:?}");
+        }
+
+
+
     }
 }
