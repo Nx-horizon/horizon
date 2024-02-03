@@ -15,7 +15,9 @@ use rayon::prelude::*;
 use crate::kdfwagen::kdfwagen;
 use crate::systemtrayerror::SystemTrayError;
 
-//v 0.5.12
+const NUM_ITERATIONS: usize = 50;
+
+//v 0.5.19
 /// Generates a 3D table of char based on the input character set and a provided seed.
 ///
 /// # Parameters
@@ -165,7 +167,7 @@ pub fn generate_key() -> String {
     let returner = match get_mac_address() {
         Ok(Some(mac_address)) => {
             let mac_address_str = mac_address.to_string();
-            let returner = kdfwagen(mac_address_str.as_bytes(), get_salt().as_bytes(), 30);
+            let returner = kdfwagen(mac_address_str.as_bytes(), get_salt().as_bytes(), NUM_ITERATIONS);
             hex::encode(returner)
         },
         Ok(None) => {
@@ -236,7 +238,7 @@ fn generate_key2(seed: &str) -> Result<String, SystemTrayError> {
         return Err(SystemTrayError::new(4));
     }
 
-    let seed = kdfwagen::kdfwagen(seed.as_bytes(), get_salt().as_bytes(), 30); //change salt by unique pc id
+    let seed = kdfwagen::kdfwagen(seed.as_bytes(), get_salt().as_bytes(), NUM_ITERATIONS); //change salt by unique pc id
 
     Ok(hex::encode(seed))
 }
@@ -275,7 +277,7 @@ fn insert_random_stars(word: &str) -> String {
 }
 
 fn vz_maker(val1: u32, val2:u32, seed: u64) -> Vec<u8>{
-    kdfwagen(&[(val1+val2) as u8,(val1*val2) as u8, (val1%val2) as u8, (val1-val2) as u8, seed as u8], get_salt().as_bytes(), 10)
+    kdfwagen(&[(val1+val2) as u8,(val1*val2) as u8, (val1%val2) as u8, seed as u8], get_salt().as_bytes(), 10)
 }
 /// Encrypts a plain text using a custom encryption algorithm based on keys, character set, and a password.
 ///
@@ -341,7 +343,7 @@ pub(crate) fn encrypt(plain_text: &str, key1: &str, key2: &str, characters: &str
             return Err(SystemTrayError::new(1));
         }
     }
-    let xor = xor_crypt(&kdfwagen(password.as_bytes(), get_salt().as_bytes(), 30), cipher_text.as_bytes());
+    let xor = xor_crypt(&kdfwagen(password.as_bytes(), get_salt().as_bytes(), NUM_ITERATIONS), cipher_text.as_bytes());
 
     let vz = vz_maker(val1, val2, seed);
     Ok(shift_bits(xor, &vz))
@@ -397,7 +399,7 @@ pub(crate) fn decrypt(cipher_text: Vec<u8>, key1: &str, key2: &str, characters: 
 
     let vz = vz_maker(val1, val2, seed);
     let cipher_text = unshift_bits(cipher_text, &vz);
-    let xor = xor_crypt(&kdfwagen(password.as_bytes(), get_salt().as_bytes(), 30), &cipher_text);
+    let xor = xor_crypt(&kdfwagen(password.as_bytes(), get_salt().as_bytes(), NUM_ITERATIONS), &cipher_text);
     let cipher_text = String::from_utf8_lossy(&xor).into_owned();
 
     let key1_chars: Vec<char> = key1.chars().collect();

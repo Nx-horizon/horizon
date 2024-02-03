@@ -2,59 +2,60 @@
 
 ![Logo](./proxy-image.png)
 
-Ce projet implémente un système de cryptographie basé sur la permutation de caractères dans une table tridimensionnelle, utilisant des clés générées de manière sécurisée. Le cryptage est réalisé à l'aide d'une combinaison de techniques, y compris des opérations de permutation et de chiffrement XOR.
+This project implements a cryptography system based on character permutation within a three-dimensional table, using securely generated keys. Encryption is performed using a combination of techniques, including permutation operations, shift bits and XOR encryption. it also have it's own prng generator.
 
-## Table des matières
+## Table of Contents
 
 - [Introduction](#introduction)
-- [Fonctionnalités](#fonctionnalités)
-- [Exigences](#exigences)
+- [Features](#features)
+- [Requirements](#requirements)
 - [Installation](#installation)
-- [Utilisation](#utilisation)
+- [Usage](#usage)
 - [Tests](#tests)
 - [Contribution](#contribution)
-- [Licence](#licence)
+- [License](#license)
 
 ## Introduction
 
-Le système repose sur une table tridimensionnelle de caractères, générée à partir d'une séquence de caractères donnée et d'une graine aléatoire. Les clés de chiffrement sont également générées de manière sécurisée à partir de la MAC adresse de l'appareil.
+The system relies on a three-dimensional table of characters generated from a given character sequence and a random seed. Encryption keys are also securely generated from the device's MAC address.
 
-## Fonctionnalités
+## Features
 
-- **Cryptage et Décryptage :** Le programme offre des fonctions pour crypter et décrypter des messages à l'aide de clés générées dynamiquement.
-- **Tables de Caractères :** Les tables de caractères sont générées de manière à introduire une entropie élevée dans le processus de cryptage.
-- **Sécurité des Clés :** Les clés de chiffrement sont générées en utilisant des techniques cryptographiques robustes.
+- **Encryption and Decryption:** The program provides functions for encrypting and decrypting messages using dynamically generated keys.
+- **Character Tables:** Character tables are generated to introduce high entropy into the encryption process.
+- **Key Security:** Encryption keys are generated using robust cryptographic techniques.
+- **Prng generator:** Implement unique version of yarrow to generate pseudo random number.
 
-## Exigences
+## Requirements
 
-- [Rust](https://www.rust-lang.org/) - Le langage de programmation Rust est nécessaire pour compiler et exécuter le projet.
+- [Rust](https://www.rust-lang.org/) - The Rust programming language is required to compile and run the project.
 
 ## Installation
 
-1. Clonez le dépôt :
+1. Clone the repository:
    ```bash
    git clone https://github.com/Cameleon00722/horizon.git
-   cd votre-projet
+   cd your-project
    ```
 
-2. Compilez le programme :
+2. Compile the program:
    ```bash
    cargo build --release
    ```
 
-## Utilisation
+## Usage
 
-Exécutez le programme en utilisant la commande suivante :
+Run the program using the following command:
 
 ```bash
-./target/release/nom-du-programme
+./target/release/program-name
 ```
 
-Suivez les instructions affichées pour crypter et décrypter des messages.
+Follow the displayed instructions to encrypt and decrypt messages.
 
 ## Tests
 
-Le projet est livré avec des tests unitaires pour assurer la robustesse du système. Exécutez les tests avec la commande suivante :
+The project comes with unit tests to ensure the system's robustness. Run the tests with the following command:
 
 ```bash
 cargo test
@@ -62,8 +63,8 @@ cargo test
 
 ## Contribution
 
-Les contributions sont les bienvenues ! Avant de soumettre des modifications, veuillez consulter [CONTRIBUTING.md](CONTRIBUTING.md) pour obtenir des informations détaillées sur la manière de contribuer au projet.
+Contributions are welcome! Before submitting changes, please refer to [CONTRIBUTING.md](CONTRIBUTING.md) for detailed information on how to contribute to the project.
 
-## Licence
+## License
 
-Ce projet est sous licence [MIT](LICENSE), ce qui signifie que vous êtes libre de l'utiliser, de le modifier et de le distribuer comme bon vous semble.
+This project is licensed under the [MIT License](LICENSE), which means you are free to use, modify, and distribute it as you see fit.

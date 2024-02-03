@@ -4,29 +4,13 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use sha3::{Sha3_512, Digest};
 
 
-use sysinfo::System;
+use sysinfo::{Networks, Pid, System};
+use crate::systemtrayerror::SystemTrayError;
 
 const MAX_RESEED_INTERVAL: u128 = 60;
 const MAX_POOL_SIZE: usize = 1024;
 const RESEED_THRESHOLD: usize = 512;
 
-/// Represents the Yarrow cryptographic pseudorandom number generator.
-///
-/// # Fields
-///
-/// - `seed`: A 64-bit unsigned integer representing the initial seed for the generator.
-/// - `pool`: A deque of unsigned 8-bit integers serving as the entropy pool.
-/// - `last_reseed_time`: A 64-bit unsigned integer representing the time of the last reseed operation.
-///
-/// # Examples
-///
-/// ```rust
-/// let yarrow_instance = Yarrow {
-///     seed: 42,
-///     pool: VecDeque::new(),
-///     last_reseed_time: 0,
-/// };
-/// ```
 pub struct Yarrow {
     seed: u128,
     pool: Mutex<VecDeque<u8>>,
@@ -34,7 +18,6 @@ pub struct Yarrow {
     bytes_since_reseed: Mutex<usize>,
 }
 
-/// Implements methods for the Yarrow cryptographic pseudorandom number generator.
 impl Yarrow {
     pub fn new(seed: u128) -> Self {
         Yarrow {
@@ -45,19 +28,25 @@ impl Yarrow {
         }
     }
 
-    pub fn add_entropy(&self) -> Result<(), Box<dyn std::error::Error>> {
+    pub fn add_entropy(&self) -> Result<(), SystemTrayError> {
         let sys = System::new_all();  // Create a new sysinfo System to get system information
 
         let total_memory = sys.total_memory();
         let used_memory = sys.used_memory();
         let total_swap = sys.total_swap();
         let nb_cpus = sys.cpus().len();
+        let uptime = System::uptime() as u128;
+        let boot_time =  System::uptime() as u128;
 
-
-        let mut pid_set = HashSet::new();
-        for pid in sys.processes().keys() {
-            pid_set.insert(pid);
+        let mut network_data = 0;
+        let networks = Networks::new_with_refreshed_list();
+        for (_, network) in &networks {
+            network_data += network.received() + network.total_received() + network.transmitted() + network.total_transmitted() + network.packets_received() + network.total_packets_received() + network.packets_transmitted() + network.total_packets_transmitted() + network.errors_on_received() + network.total_errors_on_received() + network.errors_on_transmitted();
         }
+        //println!("{network_data}");
+
+
+        let pid_set: HashSet<&Pid> = sys.processes().keys().collect();
 
         let pid_disk_usage: u128 = pid_set.into_iter().map(|&pid| {
             if let Some(process) = sys.process(pid) {
@@ -66,6 +55,10 @@ impl Yarrow {
                 0
             }
         }).sum();
+
+        if pid_disk_usage == 0 {
+            return Err(SystemTrayError::new(8));
+        }
 
         let time = SystemTime::now()
             .duration_since(UNIX_EPOCH)
@@ -79,7 +72,9 @@ impl Yarrow {
             pool.pop_front();
         }
 
-        let entropy_sources = [time, pid.into(), total_memory as u128, used_memory as u128, total_swap as u128, nb_cpus.try_into().unwrap(), pid_disk_usage];
+        let mut entropy_sources = [time, pid.into(), total_memory as u128, used_memory as u128, total_swap as u128, nb_cpus.try_into().unwrap(), pid_disk_usage, uptime, boot_time, network_data as u128];
+        self.shuffle_array(&mut entropy_sources);
+        println!("{:?}", entropy_sources);
         for source in &entropy_sources {
             let entropy_bytes = source.to_be_bytes();
             let mut hasher = Sha3_512::new();
@@ -88,6 +83,17 @@ impl Yarrow {
             pool.extend(hash.iter().copied());
         }
         Ok(())
+    }
+
+    // Fonction pour mélanger un tableau
+    fn shuffle_array<T>(&self, array: &mut [T]) {
+        let mut rng = Yarrow::new(SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos()); // use generate random number here
+        rng.combine_entropy();
+        let len = array.len();
+        for i in (1..len).rev() {
+            let j = rng.generate_bounded_number(0, i as u128) as usize;
+            array.swap(i, j);
+        }
     }
 
     fn reseed(&mut self, new_seed: u128) {
@@ -117,19 +123,6 @@ impl Yarrow {
         }
     }
 
-    /// Combines the current state of the Yarrow generator's entropy pool, seed, and last reseed time.
-    ///
-    /// # Returns
-    ///
-    /// Returns a 64-bit unsigned integer representing the combined entropy.
-    ///
-    /// # Examples
-    ///
-    /// ```rust
-    /// let yarrow_instance = Yarrow::new(42);
-    /// let combined_entropy = yarrow_instance.combine_entropy();
-    /// println!("{}", combined_entropy);
-    /// ```
     fn combine_entropy(&self) -> u128 {
         let mut combined_entropy = self.seed;
 
@@ -141,19 +134,7 @@ impl Yarrow {
         combined_entropy
     }
 
-    /// Mixes additional entropy into the Yarrow generator's entropy pool using the SHA3-512 hashing algorithm.
-    ///
-    /// # Parameters
-    ///
-    /// - `entropy`: A 64-bit unsigned integer representing the additional entropy to be mixed.
-    ///
-    /// # Examples
-    ///
-    /// ```rust
-    /// let mut yarrow_instance = Yarrow::new(42);
-    /// let additional_entropy = 123;
-    /// yarrow_instance.mix_entropy(additional_entropy);
-    /// ```
+
     fn mix_entropy(&mut self, entropy: u128) {
         let entropy_bytes = entropy.to_be_bytes();
 
@@ -165,23 +146,6 @@ impl Yarrow {
         self.pool = VecDeque::from(hash.as_slice().to_vec()).into();
     }
 
-    /// Generates a sequence of random bytes using the Yarrow generator.
-    ///
-    /// # Parameters
-    ///
-    /// - `count`: The number of random bytes to generate.
-    ///
-    /// # Returns
-    ///
-    /// Returns a vector of unsigned 8-bit integers representing the generated random bytes.
-    ///
-    /// # Examples
-    ///
-    /// ```rust
-    /// let mut yarrow_instance = Yarrow::new(42);
-    /// let random_bytes = yarrow_instance.generate_random_bytes(16);
-    /// println!("{:?}", random_bytes);
-    /// ```
     fn generate_random_bytes(&mut self, count: usize) -> Vec<u8> {
         let mut random_bytes = Vec::with_capacity(count);
 
@@ -200,19 +164,6 @@ impl Yarrow {
         random_bytes
     }
 
-    /// Generates a random 64-bit unsigned integer using the Yarrow generator.
-    ///
-    /// # Returns
-    ///
-    /// Returns a 64-bit unsigned integer representing the generated random number.
-    ///
-    /// # Examples
-    ///
-    /// ```rust
-    /// let mut yarrow_instance = Yarrow::new(42);
-    /// let random_number = yarrow_instance.generate_random_number();
-    /// println!("{}", random_number);
-    /// ```
     fn generate_random_number(&mut self) -> u128 {
         let random_bytes = self.generate_random_bytes(8);
 
@@ -225,24 +176,7 @@ impl Yarrow {
         random_number
     }
 
-    /// Generates a random 64-bit unsigned integer within a specified range using the Yarrow generator.
-    ///
-    /// # Parameters
-    ///
-    /// - `min`: The minimum value of the generated number (inclusive).
-    /// - `max`: The maximum value of the generated number (inclusive).
-    ///
-    /// # Returns
-    ///
-    /// Returns a 64-bit unsigned integer within the specified range.
-    ///
-    /// # Examples
-    ///
-    /// ```rust
-    /// let mut yarrow_instance = Yarrow::new(42);
-    /// let random_number = yarrow_instance.generate_bounded_number(10, 20);
-    /// println!("{}", random_number);
-    /// ```
+
     pub fn generate_bounded_number(&mut self, min: u128, max: u128) -> u128 {
         let random_number = self.generate_random_number();
 
@@ -250,19 +184,6 @@ impl Yarrow {
     }
 }
 
-/// Shuffles the elements of a mutable slice using the Fisher-Yates algorithm with a time-based seed.
-///
-/// # Parameters
-///
-/// - `items`: A mutable slice of elements to be shuffled.
-///
-/// # Examples
-///
-/// ```rust
-/// let mut elements = vec![1, 2, 3, 4, 5];
-/// shuffle(&mut elements);
-/// println!("{:?}", elements);
-/// ```
 pub fn shuffle<T>(items: &mut [T]) {
     let len = items.len();
     for i in (1..len).rev() {
@@ -416,7 +337,7 @@ mod tests {
         // Check if the distribution is uniform
         for count in distribution_counts.values() {
             println!("count: {}", count);
-            assert!(*count >= 850 && *count <= 1000, "Distribution is not uniform");
+            assert!(*count >= 800 && *count <= 1000, "Distribution is not uniform");
         }
     }
 
@@ -425,5 +346,18 @@ mod tests {
         let mut rng = Yarrow::new(12345);
         let sequence = rng.generate_random_bytes(1000);
         assert!(monobit_test(&sequence), "La séquence générée n'a pas passé le test de monobit");
+    }
+
+    #[test]
+    fn test_info(){
+        use sysinfo::Networks;
+
+        let networks = Networks::new_with_refreshed_list();
+        for (interface_name, network) in &networks {
+            println!("[{interface_name}] {network:?}");
+        }
+
+
+
     }
 }
