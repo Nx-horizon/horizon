@@ -2,7 +2,7 @@
 
 ![Logo](./proxy-image.png)
 
-This project implements a cryptography system based on character permutation within a three-dimensional table, using securely generated keys. Encryption is performed using a combination of techniques, including permutation operations and XOR encryption.
+This project implements a cryptography system based on character permutation within a three-dimensional table, using securely generated keys. Encryption is performed using a combination of techniques, including permutation operations, shift bits and XOR encryption. it also have it's own prng generator.
 
 ## Table of Contents
 
@@ -24,6 +24,7 @@ The system relies on a three-dimensional table of characters generated from a gi
 - **Encryption and Decryption:** The program provides functions for encrypting and decrypting messages using dynamically generated keys.
 - **Character Tables:** Character tables are generated to introduce high entropy into the encryption process.
 - **Key Security:** Encryption keys are generated using robust cryptographic techniques.
+- **Prng generator:** Implement unique version of yarrow to generate pseudo random number.
 
 ## Requirements
 
