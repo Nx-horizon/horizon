@@ -11,10 +11,10 @@ use sysinfo::System;
 use crate::prng::{self, Yarrow};
 
 //grossen function
-fn table3(size: usize, seed: usize) -> Vec<Vec<Vec<u8>>> {
+fn table3(size: usize, seed: u64) -> Vec<Vec<Vec<u8>>> {
     let mut characters: Vec<u8> = (0..=255).collect();
 
-    prng::seeded_shuffle(&mut characters, seed);
+    prng::seeded_shuffle(&mut characters, seed as usize);
 
     (0..size).into_par_iter().chunks(1000).map(|i_chunk| {
         i_chunk.into_par_iter().map(|i| {
@@ -96,8 +96,8 @@ pub fn generate_key() -> Vec<u8> {
     returner
 }
 
-fn addition_chiffres(adresse_mac: &Vec<u8>) -> u32 {
-    adresse_mac.iter().map(|&x| x as u32).sum()
+fn addition_chiffres(adresse_mac: &Vec<u8>) -> u64 {
+    adresse_mac.iter().map(|&x| x as u64).sum()
 }
 
 fn generate_key2(seed: &str) -> Result<Vec<u8>, SystemTrayError> {
@@ -129,7 +129,7 @@ fn insert_random_stars(mut word: Vec<u8>) -> Vec<u8> {
     word.into_iter().collect()
 }
 
-fn vz_maker(val1: u32, val2:u32, seed: u64) -> Vec<u8>{
+fn vz_maker(val1: u64, val2:u64, seed: u64) -> Vec<u8>{
     kdfwagen(&[(val1+val2) as u8,(val1*val2) as u8, (val1%val2) as u8, (val1-val2) as u8, seed as u8], get_salt().as_bytes(), 10)
 }
 
@@ -141,10 +141,10 @@ pub(crate) fn encrypt3(plain_text: &str, key1: &Vec<u8>, key2: &Vec<u8>, passwor
     let val2 = addition_chiffres(key1);
 
     let mut characters: Vec<u8> = (0..=255).collect();
-    let seed: usize = (val2 * val1) as usize;
+    let seed= val2 * val1;
     let table = table3(characters.len(), seed);
 
-    prng::seeded_shuffle(&mut characters, seed);
+    prng::seeded_shuffle(&mut characters, seed as usize);
 
     let char_positions: HashMap<_, _> = characters.par_iter().enumerate().map(|(i, &c)| (c, i)).collect();
 
@@ -178,7 +178,7 @@ pub(crate) fn encrypt3(plain_text: &str, key1: &Vec<u8>, key2: &Vec<u8>, passwor
     }).collect();
 
     xor_crypt3(&mut cipher_text, &kdfwagen(password.as_bytes(), get_salt().as_bytes(), 30));
-    let vz = vz_maker(val1, val2, seed as u64);
+    let vz = vz_maker(val1, val2, seed);
 
     Ok(shift_bits(cipher_text, &vz))
 }
@@ -190,16 +190,16 @@ pub(crate) fn decrypt3(cipher_text: Vec<u8>, key1: &Vec<u8>, key2: &Vec<u8>, pas
     let val1 = addition_chiffres(key2);
     let val2 = addition_chiffres(key1);
 
-    let seed: usize = (val2 * val1) as usize;
+    let seed = val2 * val1 ;
 
     let mut characters: Vec<u8> = (0..=255).collect();
-    prng::seeded_shuffle(&mut characters, seed);
+    prng::seeded_shuffle(&mut characters, seed as usize);
 
     let table = table3(characters.len(), seed);
 
     let table_len = table.len();
 
-    let vz = vz_maker(val1, val2, seed as u64);
+    let vz = vz_maker(val1, val2, seed);
     cipher_text = unshift_bits(cipher_text, &vz);
     xor_crypt3(&mut cipher_text, &kdfwagen(password.as_bytes(), get_salt().as_bytes(), 30));
 
@@ -252,21 +252,6 @@ pub fn unshift_bits(cipher_text: Vec<u8>, key: &[u8]) -> Vec<u8> {
     }).collect::<Vec<u8>>() // Collect into a Vec<u8>
 }
 
-// pub fn encrypt_file(file_path: &str, key: &[u8]) -> Result<(), Box<dyn Error>> {
-//     // Read the file content
-//     let mut file = File::open(file_path)?;
-//     let mut content = Vec::new();
-//     file.read_to_end(&mut content)?;
-
-//     // Perform XOR encryption
-//     xor_crypt3(&mut content, key);
-
-//     // Write the encrypted content back to the file
-//     let mut file = File::create(file_path)?;
-//     file.write_all(&content)?;
-
-//     Ok(())
-// }
 
 #[cfg(test)]
 mod tests {
@@ -338,9 +323,17 @@ mod tests {
     fn test_encrypt3_decrypt3() {
         // let plain_text = "cest moi le le grand test du matin et je à suis content";
         let plain_text = "cest moi le le grand test du matin et je à suis content éèù";
-        let key1 = "key1".as_bytes().to_vec();
-        let key2 = "key2".as_bytes().to_vec();
+        let key1 = generate_key();
         let pass = "LeMOTdePAsse34!";
+
+        let key2 = match generate_key2(pass) {
+            Ok(key) => key,
+            Err(err) => {
+                eprintln!("Erreur : {}", err);
+                return;
+            },
+
+        };
 
         // Convert plain_text to Vec<u8>
         let plain_text_chars = plain_text.as_bytes().to_vec();
