@@ -12,6 +12,7 @@ use std::collections::HashMap;
 use std::hash::{Hash, Hasher};
 use rand::rngs::OsRng;
 use rayon::prelude::*;
+use sysinfo::System;
 use crate::kdfwagen::kdfwagen;
 use crate::systemtrayerror::SystemTrayError;
 
@@ -66,7 +67,7 @@ fn table2(characters: &str, seed: u64) -> Vec<Vec<Vec<char>>> {
 /// println!("Generated Salt: {}", salt);
 /// ```
 fn get_salt() -> String {
-    whoami::username() + &whoami::hostname() + &whoami::distro()
+    System::name().unwrap() + &System::host_name().unwrap() + &System::os_version().unwrap()  + &System::kernel_version().unwrap()
 }
 
 /// Generate stable indices for transposition based on a specified shift.
@@ -448,34 +449,6 @@ fn xor_crypt(key: &[u8], data: &[u8]) -> Vec<u8> {
     data.par_iter().enumerate().map(|(i, &byte)| byte ^ key[i % key_len]).collect()
 }
 
-/// Determines the character set for a specific language code and returns it as a static string.
-///
-/// The function uses the `whoami` crate to get the user's language code and returns the
-/// corresponding character set based on the language.
-///
-/// # Returns
-///
-/// A static string representing the character set for the detected language or a default
-/// character set if the language is not recognized.
-///
-/// # Examples
-///
-/// ```
-/// use your_crate_name::localization;
-///
-/// let character_set = localization();
-///
-/// println!("Character Set: {}", character_set);
-/// ```
-fn localization() -> &'static str {
-    let user_lang = whoami::lang().collect::<String>();
-    match user_lang.as_str() {
-        "fr" => "15^,&X_.w4Uek[?zv>|LOi9;83tgVxCdsrGHj#Ky+<hPQSR@nMDB2Z{cfI0l6-F}7EW$%Ybq'Jo=~:\"](Aa/p!uTN)*`m  ",
-        "ar" => " ب ت ث ج ح خ د ذ ر ز س ش ص ض ط ظ ع غ ف ق ك ل م ن ١٢٣٤٥٦٧٨٩٠ ي0123456789!@#$%^&*()_+-={}[]<>?/|.,:;\"'`~ ",
-        "el" => "αΑΒΓΔΕΖΗΘΙΚΛΜΝΞΟΠΡΣΤΥΦΧΨΩαβγδεζηθικλμνξοπρστυφχψω0123456789!@#$%^&*()_+-={}[]<>?/|.,:;\"'`~ ",
-        _ => "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*()_+-={}[]<>?/|.,:;\"'`~ ",
-    }
-}
 
 /// Shifts the bits of each byte in the cipher text based on the corresponding
 /// values in the key.
@@ -544,7 +517,7 @@ pub fn unshift_bits(cipher_text: Vec<u8>, key: &[u8]) -> Vec<u8> {
 fn main() {
     let plain_text = "Le message est a une faible entropie : il est compose de peu de caracteres distincts";
 
-    let characters = localization();
+    let characters = "15^,&X_.w4Uek[?zv>|LOi9;83tgVxCdsrGHj#Ky+<hPQSR@nMDB2Z{cfI0l6-F}7EW$%Ybq'Jo=~:\"](Aa/p!uTN)*`m  ";
 
     let result = generate_key();
 

@@ -154,8 +154,8 @@ pub(crate) fn encrypt3(plain_text: &str, key1: &Vec<u8>, key2: &Vec<u8>, passwor
     let mut cipher_text = Vec::with_capacity(inter.len());
     let table_len = table.len();
 
-    let key1_chars: Vec<usize> = key1.iter().map(|&c| c as usize % characters.len()).collect();
-    let key2_chars: Vec<usize> = key2.iter().map(|&c| c as usize % characters.len()).collect();
+    let key1_chars: Vec<usize> = key1.par_iter().map(|&c| c as usize % characters.len()).collect();
+    let key2_chars: Vec<usize> = key2.par_iter().map(|&c| c as usize % characters.len()).collect();
     let key1_len = key1_chars.len();
     let key2_len = key2_chars.len();
 
@@ -207,8 +207,8 @@ pub(crate) fn decrypt3(cipher_text: Vec<u8>, key1: &Vec<u8>, key2: &Vec<u8>, pas
     cipher_text = unshift_bits(cipher_text, &vz);
     xor_crypt3(&mut cipher_text, &kdfwagen(password.as_bytes(), get_salt().as_bytes(), 30));
 
-    let key1_chars: Vec<usize> = key1.iter().map(|&c| c as usize % characters.len()).collect();
-    let key2_chars: Vec<usize> = key2.iter().map(|&c| c as usize % characters.len()).collect();
+    let key1_chars: Vec<usize> = key1.par_iter().map(|&c| c as usize % characters.len()).collect();
+    let key2_chars: Vec<usize> = key2.par_iter().map(|&c| c as usize % characters.len()).collect();
     let key1_len = key1_chars.len();
     let key2_len = key2_chars.len();
 
