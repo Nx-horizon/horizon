@@ -331,8 +331,8 @@ pub(crate) fn encrypt(plain_text: &str, key1: &str, key2: &str, characters: &str
 
     for (i, c) in plain_text_with_stars.chars().enumerate() {
         let table_2d = key1.chars().nth(i % key1.len()).ok_or(SystemTrayError::new(5))? as usize % characters.len();
-        let row = key2.chars().nth(i % key2.len()).ok_or(SystemTrayError::new(5))? as usize % characters.len();
 
+        let row = key2.chars().nth(i % key2.len()).ok_or(SystemTrayError::new(5))? as usize % characters.len();
         let col = *char_positions.get(&c).ok_or(SystemTrayError::new(6))? % characters.len();
 
         if table_2d < table.len() && row < table[table_2d].len() && col < table[table_2d][row].len() {
