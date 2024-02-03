@@ -16,7 +16,7 @@ fn table3(size: usize, seed: usize) -> Vec<Vec<Vec<u8>>> {
 
     prng::seeded_shuffle(&mut characters, seed);
 
-    return (0..size).into_par_iter().chunks(1000).map(|i_chunk| {
+    (0..size).into_par_iter().chunks(1000).map(|i_chunk| {
         i_chunk.into_par_iter().map(|i| {
             (0..size).into_par_iter().chunks(1000).map(|j_chunk| {
                 j_chunk.into_par_iter().map(|j: usize| {
@@ -27,7 +27,7 @@ fn table3(size: usize, seed: usize) -> Vec<Vec<Vec<u8>>> {
                 }).collect::<Vec<Vec<u8>>>()
             }).flatten().collect::<Vec<Vec<u8>>>()
         }).collect::<Vec<Vec<Vec<u8>>>>()
-    }).flatten().collect::<Vec<Vec<Vec<u8>>>>();
+    }).flatten().collect::<Vec<Vec<Vec<u8>>>>()
 }
 
 
@@ -57,7 +57,7 @@ fn stable_indices(word_len: usize, shift: usize) -> Vec<usize> {
         .take(word_len)
         .collect();
 
-    return shifted_indices;
+    shifted_indices
 }
 
 fn transpose(word: Vec<u8>, shift: usize) -> Option<Vec<u8>> {
@@ -73,7 +73,7 @@ fn transpose(word: Vec<u8>, shift: usize) -> Option<Vec<u8>> {
         .map(|&i| word[i])
         .collect();
 
-    return Some(output);
+    Some(output)
 }
 
 pub fn generate_key() -> Vec<u8> {
@@ -93,7 +93,7 @@ pub fn generate_key() -> Vec<u8> {
         },
     };
 
-    return returner;
+    returner
 }
 
 fn addition_chiffres(adresse_mac: &Vec<u8>) -> u32 {
@@ -146,12 +146,9 @@ pub(crate) fn encrypt3(plain_text: &str, key1: &Vec<u8>, key2: &Vec<u8>, passwor
 
     prng::seeded_shuffle(&mut characters, seed);
 
-    let mut char_positions = HashMap::with_capacity(characters.len());
-    characters.iter().enumerate().for_each(|(i, c)| {
-        char_positions.insert(c, i);
-    });
+    let char_positions: HashMap<_, _> = characters.par_iter().enumerate().map(|(i, &c)| (c, i)).collect();
 
-    let mut cipher_text = Vec::with_capacity(inter.len());
+
     let table_len = table.len();
 
     let key1_chars: Vec<usize> = key1.par_iter().map(|&c| c as usize % characters.len()).collect();
@@ -159,7 +156,7 @@ pub(crate) fn encrypt3(plain_text: &str, key1: &Vec<u8>, key2: &Vec<u8>, passwor
     let key1_len = key1_chars.len();
     let key2_len = key2_chars.len();
 
-    for (i, c) in inter.iter().enumerate() {
+    let mut cipher_text: Vec<_> = inter.par_iter().enumerate().filter_map(|(i, c)| {
         let table_2d = key1_chars[i % key1_len] % table_len;
         let row = key2_chars[i % key2_len] % table_len;
 
@@ -168,17 +165,17 @@ pub(crate) fn encrypt3(plain_text: &str, key1: &Vec<u8>, key2: &Vec<u8>, passwor
                 let col = col % characters.len();
 
                 if table_2d < table_len && row < table[table_2d].len() && col < table[table_2d][row].len() {
-                    cipher_text.push(table[table_2d][row][col].clone());
+                    Some(table[table_2d][row][col].clone())
                 } else {
-                    return Err(format!("Error: Invalid table dimensions. table_2d: {}, row: {}, col: {}", table_2d, row, col).into());
+                    None
                 }
             },
             None => {
                 println!("Character '{}' not found in character set", c);
-                return Err("Error: Character not found in character set".into());
+                None
             },
         }
-    }
+    }).collect();
 
     xor_crypt3(&mut cipher_text, &kdfwagen(password.as_bytes(), get_salt().as_bytes(), 30));
     let vz = vz_maker(val1, val2, seed as u64);
@@ -200,7 +197,6 @@ pub(crate) fn decrypt3(cipher_text: Vec<u8>, key1: &Vec<u8>, key2: &Vec<u8>, pas
 
     let table = table3(characters.len(), seed);
 
-    let mut plain_text: Vec<u8> = Vec::new();
     let table_len = table.len();
 
     let vz = vz_maker(val1, val2, seed as u64);
@@ -212,25 +208,24 @@ pub(crate) fn decrypt3(cipher_text: Vec<u8>, key1: &Vec<u8>, key2: &Vec<u8>, pas
     let key1_len = key1_chars.len();
     let key2_len = key2_chars.len();
 
-    for (i, c) in cipher_text.iter().enumerate() {
-        let table_2d = key1_chars[i % key1_len] % table_len;
-        let row = key2_chars[i % key2_len] % table_len;
+    let plain_text: Vec<_> = cipher_text.par_iter().enumerate().filter_map(|(i, c)| {
+    let table_2d = key1_chars[i % key1_len] % table_len;
+    let row = key2_chars[i % key2_len] % table_len;
 
-        if table_2d < table_len && row < table[table_2d].len() {
-            if let Some(col) = table[table_2d][row].iter().position(|x| x == c) {
-                if characters[col] != 94 {
-                    plain_text.push(characters[col]);
-
-                }
+    if table_2d < table_len && row < table[table_2d].len() {
+        if let Some(col) = table[table_2d][row].iter().position(|x| x == c) {
+            if characters[col] != 94 {
+                Some(characters[col])
             } else {
-                return Err("Error: String not found in table".into());
+                None
             }
         } else {
-            return Err("Error: Invalid table dimensions".into());
+            None
         }
+    } else {
+        None
     }
-    
-    // let mut plain_text: String = plain_text.into_iter().collect();
+}).collect();
 
     Ok(plain_text)
 }
