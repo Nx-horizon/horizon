@@ -1,7 +1,5 @@
 use std::collections::HashMap;
 use std::error::Error;
-use std::fs::File;
-use std::io::{Read, Write};
 use std::time::{SystemTime, UNIX_EPOCH};
 use mac_address::get_mac_address;
 use rayon::prelude::*;
@@ -32,9 +30,6 @@ fn table3(size: usize, seed: usize) -> Vec<Vec<Vec<u8>>> {
     }).flatten().collect::<Vec<Vec<Vec<u8>>>>();
 }
 
-fn initial_get_salt() -> String {
-    whoami::username() + &whoami::hostname() + &whoami::distro()
-}
 
 fn get_salt() -> String {
     System::name().unwrap() + &System::host_name().unwrap() + &System::os_version().unwrap()  + &System::kernel_version().unwrap()
@@ -116,7 +111,7 @@ fn generate_key2(seed: &str) -> Result<Vec<u8>, SystemTrayError> {
 }
 
 fn insert_random_stars(mut word: Vec<u8>) -> Vec<u8> {
-    let mut rng = Yarrow::new(SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos() as u128);
+    let mut rng = Yarrow::new(SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos());
     rng.add_entropy();
 
     let num_stars: usize = rng.generate_bounded_number((word.len()/2) as u128, (word.len()*2) as u128) as usize;
@@ -288,17 +283,17 @@ mod tests {
 
         let table = table3(size, 1234567890);
 
-        for (i, table_2d) in table.iter().enumerate() {
-            for (j, row) in table_2d.iter().enumerate() {
-                for (k, col) in row.iter().enumerate() {
+        for (_i, table_2d) in table.iter().enumerate() {
+            for (_j, row) in table_2d.iter().enumerate() {
+                for (_k, col) in row.iter().enumerate() {
                     print!("{} ", col);
                 }
 
-                println!("");
+                println!();
             }
 
-            println!("");
-            println!("");
+            println!();
+            println!();
         }
     }
 
@@ -347,7 +342,7 @@ mod tests {
     #[test]
     fn test_encrypt3_decrypt3() {
         // let plain_text = "cest moi le le grand test du matin et je à suis content";
-        let plain_text = "cest moi le le grand test du matin et je à suis content";
+        let plain_text = "cest moi le le grand test du matin et je à suis content éèù";
         let key1 = "key1".as_bytes().to_vec();
         let key2 = "key2".as_bytes().to_vec();
         let pass = "LeMOTdePAsse34!";
@@ -361,13 +356,12 @@ mod tests {
                 println!("Encrypted: {:?}", encrypted);
                 assert_ne!(encrypted, plain_text_chars);
 
-                // Convert encrypted to Vec<String>
-                let encrypted_str: Vec<String> = encrypted.iter().map(|c| c.to_string()).collect();
 
                 // Test decrypt3
                 match decrypt3(encrypted, &key1, &key2, pass) {
                     Ok(decrypted) => {
                         println!("Decrypted: {:?}", decrypted);
+                        println!("convert u8: {:?}", String::from_utf8(decrypted.clone()).unwrap());
                         assert_eq!(decrypted, plain_text_chars);
                     },
                     Err(e) => panic!("Decryption failed with error: {:?}", e),

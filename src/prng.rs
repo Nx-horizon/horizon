@@ -74,7 +74,6 @@ impl Yarrow {
 
         let mut entropy_sources = [time, pid.into(), total_memory as u128, used_memory as u128, total_swap as u128, nb_cpus.try_into().unwrap(), pid_disk_usage, uptime, boot_time, network_data as u128];
         self.shuffle_array(&mut entropy_sources);
-        println!("{:?}", entropy_sources);
         for source in &entropy_sources {
             let entropy_bytes = source.to_be_bytes();
             let mut hasher = Sha3_512::new();
