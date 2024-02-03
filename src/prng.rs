@@ -43,7 +43,7 @@ impl Yarrow {
         for (_, network) in &networks {
             network_data += network.received() + network.total_received() + network.transmitted() + network.total_transmitted() + network.packets_received() + network.total_packets_received() + network.packets_transmitted() + network.total_packets_transmitted() + network.errors_on_received() + network.total_errors_on_received() + network.errors_on_transmitted();
         }
-        println!("{network_data}");
+        //println!("{network_data}");
 
 
         let pid_set: HashSet<&Pid> = sys.processes().keys().collect();
@@ -87,7 +87,7 @@ impl Yarrow {
 
     // Fonction pour mélanger un tableau
     fn shuffle_array<T>(&self, array: &mut [T]) {
-        let mut rng = Yarrow::new(self.seed); // use generate random number here
+        let mut rng = Yarrow::new(SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos()); // use generate random number here
         rng.combine_entropy();
         let len = array.len();
         for i in (1..len).rev() {
