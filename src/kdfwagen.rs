@@ -1,4 +1,4 @@
-use sha3::{Digest, Sha3_512};
+use blake3::Hasher;
 use rayon::iter::IntoParallelRefMutIterator;
 use rayon::iter::IndexedParallelIterator;
 use rayon::prelude::IntoParallelRefIterator;
@@ -23,15 +23,19 @@ use rayon::iter::ParallelIterator;
 /// let hmac_result = hmac(&key, &message);
 /// println!("{:?}", hmac_result);
 /// ```
-fn hmac(key: &[u8], message: &[u8]) -> Vec<u8> {
+fn hmac(key: &[u8], message: &[u8]) -> [u8; 64] {
     const BLOCK_SIZE: usize = 128;
 
     let mut adjusted_key = if key.len() > BLOCK_SIZE {
-        let mut hasher = Sha3_512::new();
+        let mut hasher = Hasher::new();
         hasher.update(key);
-        hasher.finalize().to_vec()
+        let mut output = [0; 64];
+        hasher.finalize_xof().fill(&mut output);
+        output.to_vec()
     } else {
-        key.to_vec()
+        let mut output = [0; 64];
+        output[..key.len()].copy_from_slice(key);
+        output.to_vec()
     };
 
     if adjusted_key.len() < BLOCK_SIZE {
@@ -43,11 +47,18 @@ fn hmac(key: &[u8], message: &[u8]) -> Vec<u8> {
 
     let inner_input: Vec<u8> = ipad.into_iter().chain(message.into_iter().cloned()).collect();
 
-    let inner_hash = Sha3_512::digest(inner_input);
+    let mut inner_hasher = Hasher::new();
+    inner_hasher.update(&inner_input);
+    let mut inner_hash = [0; 64];
+    inner_hasher.finalize_xof().fill(&mut inner_hash);
 
     let outer_input: Vec<u8> = opad.into_iter().chain(inner_hash.iter().cloned()).collect();
+    let mut outer_hasher = Hasher::new();
+    outer_hasher.update(&outer_input);
+    let mut outer_hash = [0; 64];
+    outer_hasher.finalize_xof().fill(&mut outer_hash);
 
-    Sha3_512::digest(outer_input).to_vec()
+    outer_hash
 }
 
 /// Performs the Key Derivation Function (KDF) based on the HMAC-SHA3-512 algorithm.
@@ -109,7 +120,7 @@ mod tests {
     fn test_hmac() {
         let key = b"key";
         let message = b"The quick brown fox jumps over the lazy dog";
-        let expected = "2a18de870613ad3cb1d3ed660320c8508c1107915ab7d9eadc06723237e97de491e8ba87b3a2e2f4c61775e24e11f77bdd9e7406d5dca68e9c692c67fc3307b1";
+        let expected = "7dd9b777e6a6a1ad1b6b7903dfd37f032310f4d10aada0057e84952e6a4bd5c2ceb935ebedaec8bfce881205d4856f9030af7ea005f73cb68a238b38f2e71f28";
         let result = hmac(key, message);
         assert_eq!(hex::encode(result), expected);
     }
@@ -119,7 +130,7 @@ mod tests {
         let password = b"password";
         let salt = b"salt";
         let iterations = 2;
-        let expected = "4714bcc31299ffafd9bef3315f28596a77fc51e5dca321e485dbf67e203f7c5c08a01f65090539ff9a0ae2d610373729ed3e7f54201d581a7e9a2d023b6900407c9aa051f645cb7254772d3f538aa1714ec81b10204e2b70c1b9c7f118e4713cd2e17ce7d6f450fadfdd40727001e16554a58ac16c589feaba2f7c58827b517d00416e457e494721b5f3d150fd76d91ca5a0034da249b23d9cc07cfc5916ce568c24ac15bc936b6f26c3f75625146e9927113adefc35eb8a4ee5f4c18ccc2cba7efef4510307f8ccd0f8d523cbf3efbb26da6cd7aaf31eb541b603d6e1ab07e2eb8d440690e9fb8ba48a470257c95b76047af1b696d87ca78d8b91743e6a3ed0e335285f248729b644fe1eeb07487daedc04581b244e149eeb0bc4c98f7a323ac805141741992b88b7d6586cce599e508f6a7581f6589739f68079f0f158519039f2cb05e302b953b324ff7d52993d5cb8b8ddc5793f9bfaa27cfae49465e9f0ef8938aefb94a96cb48697f3db737a96d9a0c8c1b2bc3975f0aea3e3fe0582bb1456cbadab03466c9fa5d91c796db5304258350f3bc1be5cea14dff983b48c12bac1f20327b55a3215b91506db3c6fdad0a58253405a033b0d68a3145f5e91b2f54f9ca7dfe864e680b5af70545aed4553a9f180025fc98d713e5d4408bf2e65dcbc94e1acd9a5d154e04f26fcc2617ee0acb5cc164280c6e504b291635fcd5b";
+        let expected = "413bd0ade22416e8e3d020ce630195a1344007b5ae5f7b80f4c8000954df962f0de0e577870cdb0b740cb40bbb3036e98d5a441cc9a23e6792c38d1c62d9e68ce44cb1b069bf2111c6f239260bc8a303ff27feec4712cf2eb6f77bbb2e57cde79367bb9db9b7deeaabef96bb26d7ad5958b4f29b26f7ed2bd80406aef4b0ebed6fee5f2ecf334ee5572028d563a42512bcc21be613aaf873c1b14b566c2747ca6fa9ef5542c2872fca20f71430f5a6db219ee5fb796fc991539763b3c2fe631ae1faa850ca7c184967bb4248fb2d8aaf633bf4b6c6ad76eeeb10ad1e42a104d7c2f07017e9812b01ee9c601cf4c45becac0d62bf33eaaed7ae92b5d93736cb66bfed9dbb2091334a883c6f4c65731bb1187bf186ca67c9e43954c4602d14efd3321c6e8cb4501bb81256def8f63ff5f0ebdbbec62e41be0e849be79f3caeac391f4aec954c9dda8a30a41b56e062a601dc9c3dbf6b0e4958b6a8528f673082fd5072caadf970cfc1cba9aa789b2c5f3e57cc12cd43284275d4e8bccc1a001d8e8f3c052589d2c9441c0df8c9fc4d3ef4a3a9f8cd523d5e1b2c96425bb3b415b5bb22070c9349421c9746f65e31331aab58950b4722c98d422cc88c1ab4601011c1d29db969edca4000e130ea788bef2de34e6856088f6a61df8545f55b174234702b22564710e99dea7cd55d01ce24f10f612424b0ea1bdc77c1cceb6774af4b";
         let result = kdfwagen(password, salt, iterations);
         assert_eq!(hex::encode(result), expected);
     }

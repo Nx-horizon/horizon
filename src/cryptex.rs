@@ -1,9 +1,9 @@
 use std::collections::HashMap;
 use std::error::Error;
 use std::time::{SystemTime, UNIX_EPOCH};
+use blake3::Hasher;
 use mac_address::get_mac_address;
 use rayon::prelude::*;
-use sha3::{Digest, Sha3_512};
 use crate::{kdfwagen};
 use crate::systemtrayerror::SystemTrayError;
 use sysinfo::System;
@@ -39,13 +39,15 @@ fn stable_indices(word_len: usize, shift: usize) -> Vec<usize> {
     let mut indices: Vec<usize> = (0..word_len).collect();
 
     indices.sort_unstable_by(|&a, &b| {
-        let mut hasher = Sha3_512::new();
-        hasher.update(a.to_ne_bytes());
-        let hash_a = hasher.finalize();
+        let mut hasher = Hasher::new();
+        hasher.update(&a.to_ne_bytes());
+        let mut hash_a = [0; 64];
+        hasher.finalize_xof().fill(&mut hash_a);
 
-        let mut hasher = Sha3_512::new();
-        hasher.update(b.to_ne_bytes());
-        let hash_b = hasher.finalize();
+        let mut hasher = Hasher::new();
+        hasher.update(&b.to_ne_bytes());
+        let mut hash_b = [0; 64];
+        hasher.finalize_xof().fill(&mut hash_b);
 
         return hash_a.cmp(&hash_b);
     });
@@ -59,7 +61,6 @@ fn stable_indices(word_len: usize, shift: usize) -> Vec<usize> {
 
     shifted_indices
 }
-
 fn transpose(word: Vec<u8>, shift: usize) -> Option<Vec<u8>> {
     let word_len = word.len();
 
@@ -81,7 +82,7 @@ pub fn generate_key() -> Vec<u8> {
         Ok(Some(mac_address)) => {
             let mac_address_str = mac_address.to_string();
             let returner = kdfwagen(mac_address_str.as_bytes(), get_salt().as_bytes(), 30);
-            hex::encode(returner).as_bytes().to_vec()
+            returner
         },
         Ok(None) => {
             println!("No MAC address found.");
@@ -107,7 +108,7 @@ fn generate_key2(seed: &str) -> Result<Vec<u8>, SystemTrayError> {
 
     let seed = kdfwagen::kdfwagen(seed.as_bytes(), get_salt().as_bytes(), 30); //change salt by unique pc id
 
-    Ok(hex::encode(seed).as_bytes().to_vec())
+    Ok(seed)
 }
 
 fn insert_random_stars(mut word: Vec<u8>) -> Vec<u8> {
@@ -130,7 +131,7 @@ fn insert_random_stars(mut word: Vec<u8>) -> Vec<u8> {
 }
 
 fn vz_maker(val1: u64, val2:u64, seed: u64) -> Vec<u8>{
-    kdfwagen(&[(val1+val2) as u8,(val1*val2) as u8, (val1%val2) as u8, (val1-val2) as u8, seed as u8], get_salt().as_bytes(), 10)
+    kdfwagen(&[(val1+val2) as u8,(val1*val2) as u8, (val1%val2) as u8, seed as u8], get_salt().as_bytes(), 10)
 }
 
 pub(crate) fn encrypt3(plain_text: &str, key1: &Vec<u8>, key2: &Vec<u8>, password: &str) -> Result<Vec<u8>, Box<dyn Error>> {

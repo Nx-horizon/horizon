@@ -1,6 +1,7 @@
 use std::collections::{HashSet, VecDeque};
 use std::sync::Mutex;
 use std::time::{SystemTime, UNIX_EPOCH};
+use blake3::Hasher;
 use sha3::{Sha3_512, Digest};
 
 
@@ -27,7 +28,6 @@ impl Yarrow {
             bytes_since_reseed: Mutex::new(0),
         }
     }
-
     pub fn add_entropy(&self) -> Result<(), SystemTrayError> {
         let sys = System::new_all();  // Create a new sysinfo System to get system information
 
@@ -43,8 +43,6 @@ impl Yarrow {
         for (_, network) in &networks {
             network_data += network.received() + network.total_received() + network.transmitted() + network.total_transmitted() + network.packets_received() + network.total_packets_received() + network.packets_transmitted() + network.total_packets_transmitted() + network.errors_on_received() + network.total_errors_on_received() + network.errors_on_transmitted();
         }
-        //println!("{network_data}");
-
 
         let pid_set: HashSet<&Pid> = sys.processes().keys().collect();
 
@@ -76,10 +74,11 @@ impl Yarrow {
         self.shuffle_array(&mut entropy_sources);
         for source in &entropy_sources {
             let entropy_bytes = source.to_be_bytes();
-            let mut hasher = Sha3_512::new();
-            hasher.update(entropy_bytes);
-            let hash = hasher.finalize();
-            pool.extend(hash.iter().copied());
+            let mut hasher = Hasher::new();
+            hasher.update(&entropy_bytes);
+            let mut hash = [0; 64];
+            hasher.finalize_xof().fill(&mut hash);
+            pool.extend(hash.iter());
         }
         Ok(())
     }
