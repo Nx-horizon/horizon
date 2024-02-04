@@ -136,12 +136,13 @@ impl Yarrow {
     fn mix_entropy(&mut self, entropy: u128) {
         let entropy_bytes = entropy.to_be_bytes();
 
-        let mut hasher = Sha3_512::new();
+        let mut hasher = Hasher::new();
         hasher.update(&self.pool.lock().unwrap().make_contiguous());
-        hasher.update(entropy_bytes);
+        hasher.update(&entropy_bytes);
 
-        let hash = hasher.finalize();
-        self.pool = VecDeque::from(hash.as_slice().to_vec()).into();
+        let mut hash = [0; 64];
+        hasher.finalize_xof().fill(&mut hash);
+        self.pool = Mutex::new(VecDeque::from(hash.to_vec()));
     }
 
     fn generate_random_bytes(&mut self, count: usize) -> Vec<u8> {
