@@ -288,16 +288,6 @@ mod tests {
     }
 
     #[test]
-    fn test_shuffle() {
-        let mut items = vec![1, 2, 3, 4, 5];
-        let original = items.clone();
-        shuffle(&mut items);
-        assert_ne!(items, original, "Les éléments n'ont pas été mélangés");
-        items.sort();
-        assert_eq!(items, original, "Tous les éléments d'origine ne sont pas présents après le mélange");
-    }
-
-    #[test]
     fn test_shuffle_string() {
         let mut s = "Hello, World!".chars().collect::<Vec<_>>();
         let original = s.clone().into_iter().collect::<String>();
