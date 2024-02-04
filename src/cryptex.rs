@@ -10,7 +10,7 @@ use sysinfo::System;
 
 use crate::prng::{self, Yarrow};
 
-//grossen function
+
 fn table3(size: usize, seed: u64) -> Vec<Vec<Vec<u8>>> {
     let mut characters: Vec<u8> = (0..=255).collect();
 
@@ -38,7 +38,7 @@ fn get_salt() -> String {
 fn stable_indices(word_len: usize, shift: usize) -> Vec<usize> {
     let mut indices: Vec<usize> = (0..word_len).collect();
 
-    indices.sort_unstable_by(|&a, &b| {
+    indices.sort_unstable_by(|a, b| {
         let mut hasher = Hasher::new();
         hasher.update(&a.to_ne_bytes());
         let mut hash_a = [0; 64];
@@ -78,23 +78,23 @@ fn transpose(word: Vec<u8>, shift: usize) -> Option<Vec<u8>> {
 }
 
 pub fn generate_key() -> Vec<u8> {
-    let returner = match get_mac_address() {
+
+    match get_mac_address() {
         Ok(Some(mac_address)) => {
             let mac_address_str = mac_address.to_string();
             let returner = kdfwagen(mac_address_str.as_bytes(), get_salt().as_bytes(), 30);
             returner
         },
         Ok(None) => {
-            println!("No MAC address found.");
+            println!("No MAC address found."); ///TODO use systemTrayError
             Vec::new()
         },
         Err(e) => {
-            println!("Error: {}", e);
+            eprintln!("Error: {}", e);
             Vec::new()
         },
-    };
+    }
 
-    returner
 }
 
 fn addition_chiffres(adresse_mac: &Vec<u8>) -> u64 {
@@ -106,12 +106,12 @@ fn generate_key2(seed: &str) -> Result<Vec<u8>, SystemTrayError> {
         return Err(SystemTrayError::new(4));
     }
 
-    let seed = kdfwagen::kdfwagen(seed.as_bytes(), get_salt().as_bytes(), 30); //change salt by unique pc id
+    let seed = kdfwagen::kdfwagen(seed.as_bytes(), get_salt().as_bytes(), 30);
 
     Ok(seed)
 }
 
-fn insert_random_stars(mut word: Vec<u8>) -> Vec<u8> {
+fn insert_random_stars(mut word: Vec<u8>) -> Vec<u8> { ///TODO check if using &mut is ok
     let mut rng = Yarrow::new(SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos());
     rng.add_entropy();
 
@@ -127,7 +127,7 @@ fn insert_random_stars(mut word: Vec<u8>) -> Vec<u8> {
         word.insert(index, stars.pop().unwrap());
     }
 
-    word.into_iter().collect()
+    word
 }
 
 fn vz_maker(val1: u64, val2:u64, seed: u64) -> Vec<u8>{
@@ -152,8 +152,8 @@ pub(crate) fn encrypt3(plain_text: &str, key1: &Vec<u8>, key2: &Vec<u8>, passwor
 
     let table_len = table.len();
 
-    let key1_chars: Vec<usize> = key1.par_iter().map(|&c| c as usize % characters.len()).collect();
-    let key2_chars: Vec<usize> = key2.par_iter().map(|&c| c as usize % characters.len()).collect();
+    let key1_chars: Vec<usize> = key1.into_par_iter().map(|&c| c as usize % characters.len()).collect();
+    let key2_chars: Vec<usize> = key2.into_par_iter().map(|&c| c as usize % characters.len()).collect();
     let key1_len = key1_chars.len();
     let key2_len = key2_chars.len();
 
@@ -204,8 +204,8 @@ pub(crate) fn decrypt3(cipher_text: Vec<u8>, key1: &Vec<u8>, key2: &Vec<u8>, pas
     cipher_text = unshift_bits(cipher_text, &vz);
     xor_crypt3(&mut cipher_text, &kdfwagen(password.as_bytes(), get_salt().as_bytes(), 30));
 
-    let key1_chars: Vec<usize> = key1.par_iter().map(|&c| c as usize % characters.len()).collect();
-    let key2_chars: Vec<usize> = key2.par_iter().map(|&c| c as usize % characters.len()).collect();
+    let key1_chars: Vec<usize> = key1.into_par_iter().map(|&c| c as usize % characters.len()).collect();
+    let key2_chars: Vec<usize> = key2.into_par_iter().map(|&c| c as usize % characters.len()).collect();
     let key1_len = key1_chars.len();
     let key2_len = key2_chars.len();
 
@@ -323,7 +323,7 @@ mod tests {
     #[test]
     fn test_encrypt3_decrypt3() {
         // let plain_text = "cest moi le le grand test du matin et je à suis content";
-        let plain_text = "cest moi le le grand test du matin et je à suis content éèù";
+        let plain_text = "cest moi le le grand test du matin et je à suis content éèù:;?";
         let key1 = generate_key();
         let pass = "LeMOTdePAsse34!";
 
