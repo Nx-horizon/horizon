@@ -8,8 +8,9 @@ use crate::{kdfwagen};
 use crate::systemtrayerror::SystemTrayError;
 use sysinfo::System;
 
-use crate::prng::{self, Yarrow};
+use crate::prng::{self, Nebula};
 
+const NUM_ITERATIONS: usize = 30;
 
 fn table3(size: usize, seed: u64) -> Vec<Vec<Vec<u8>>> {
     let mut characters: Vec<u8> = (0..=255).collect();
@@ -82,7 +83,7 @@ pub fn generate_key() -> Vec<u8> {
     match get_mac_address() {
         Ok(Some(mac_address)) => {
             let mac_address_str = mac_address.to_string();
-            let returner = kdfwagen(mac_address_str.as_bytes(), get_salt().as_bytes(), 30);
+            let returner = kdfwagen(mac_address_str.as_bytes(), get_salt().as_bytes(), NUM_ITERATIONS);
             returner
         },
         Ok(None) => {
@@ -106,16 +107,16 @@ fn generate_key2(seed: &str) -> Result<Vec<u8>, SystemTrayError> {
         return Err(SystemTrayError::new(4));
     }
 
-    let seed = kdfwagen::kdfwagen(seed.as_bytes(), get_salt().as_bytes(), 30);
+    let seed = kdfwagen::kdfwagen(seed.as_bytes(), get_salt().as_bytes(), NUM_ITERATIONS);
 
     Ok(seed)
 }
 
 fn insert_random_stars(mut word: Vec<u8>) -> Vec<u8> { ///TODO check if using &mut is ok
-    let mut rng = Yarrow::new(SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos());
-    rng.add_entropy();
+    let mut rng = Nebula::new(SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos());
+    rng.add_entropy(); //TODO check with match
 
-    let num_stars: usize = rng.generate_bounded_number((word.len()/2) as u128, (word.len()*2) as u128) as usize;
+    let num_stars: usize = rng.generate_bounded_number((word.len()/2) as u128, (word.len()*2) as u128).unwrap() as usize;
 
     // In utf-8, the '^' character is 94
     let mut stars: Vec<u8> = vec![94; num_stars];
@@ -178,7 +179,7 @@ pub(crate) fn encrypt3(plain_text: &str, key1: &Vec<u8>, key2: &Vec<u8>, passwor
         }
     }).collect();
 
-    xor_crypt3(&mut cipher_text, &kdfwagen(password.as_bytes(), get_salt().as_bytes(), 30));
+    xor_crypt3(&mut cipher_text, &kdfwagen(password.as_bytes(), get_salt().as_bytes(), NUM_ITERATIONS));
     let vz = vz_maker(val1, val2, seed);
 
     Ok(shift_bits(cipher_text, &vz))
@@ -202,7 +203,7 @@ pub(crate) fn decrypt3(cipher_text: Vec<u8>, key1: &Vec<u8>, key2: &Vec<u8>, pas
 
     let vz = vz_maker(val1, val2, seed);
     cipher_text = unshift_bits(cipher_text, &vz);
-    xor_crypt3(&mut cipher_text, &kdfwagen(password.as_bytes(), get_salt().as_bytes(), 30));
+    xor_crypt3(&mut cipher_text, &kdfwagen(password.as_bytes(), get_salt().as_bytes(), NUM_ITERATIONS));
 
     let key1_chars: Vec<usize> = key1.into_par_iter().map(|&c| c as usize % characters.len()).collect();
     let key2_chars: Vec<usize> = key2.into_par_iter().map(|&c| c as usize % characters.len()).collect();

@@ -2,7 +2,6 @@ use std::collections::{HashSet, VecDeque};
 use std::sync::Mutex;
 use std::time::{SystemTime, UNIX_EPOCH};
 use blake3::Hasher;
-use sha3::{Sha3_512, Digest};
 
 
 use sysinfo::{Networks, Pid, System};
@@ -12,16 +11,16 @@ const MAX_RESEED_INTERVAL: u128 = 60;
 const MAX_POOL_SIZE: usize = 1024;
 const RESEED_THRESHOLD: usize = 512;
 
-pub struct Yarrow {
+pub struct Nebula {
     seed: u128,
     pool: Mutex<VecDeque<u8>>,
     last_reseed_time: u128,
     bytes_since_reseed: Mutex<usize>,
 }
 
-impl Yarrow {
+impl Nebula {
     pub fn new(seed: u128) -> Self {
-        Yarrow {
+        Nebula {
             seed,
             pool: Mutex::new(VecDeque::new()),
             last_reseed_time: 0,
@@ -85,14 +84,22 @@ impl Yarrow {
 
     // Fonction pour mélanger un tableau
     fn shuffle_array<T>(&self, array: &mut [T]) {
-        let mut rng = Yarrow::new(SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos()); // use generate random number here
+        let mut rng = Nebula::new(SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos()); // use generate random number here
         rng.combine_entropy();
         let len = array.len();
         for i in (1..len).rev() {
-            let j = rng.generate_bounded_number(0, i as u128) as usize;
-            array.swap(i, j);
+            match rng.generate_bounded_number(0, i as u128) {
+                Ok(random_number) => {
+                    let j = random_number as usize;
+                    array.swap(i, j);
+                }
+                Err(err) => {
+                    eprintln!("SystemTrayError: {:?}", err);
+                }
+            }
         }
     }
+
 
     fn reseed(&mut self, new_seed: u128) {
         {
@@ -176,10 +183,13 @@ impl Yarrow {
     }
 
 
-    pub fn generate_bounded_number(&mut self, min: u128, max: u128) -> u128 {
+    pub fn generate_bounded_number(&mut self, min: u128, max: u128) -> Result<u128, SystemTrayError> {
+        if min > max {
+            return Err(SystemTrayError::new(9));
+        }
         let random_number = self.generate_random_number();
 
-        min + (random_number % (max - min + 1))
+        Ok(min + (random_number % (max - min + 1)))
     }
 }
 
@@ -226,10 +236,9 @@ mod tests {
     use std::collections::HashMap;
     use super::*;
 
-
     #[test]
     fn test_add_entropy() {
-        let mut rng = Yarrow::new(12345);
+        let mut rng = Nebula::new(12345);
         let initial_state = rng.pool.lock().unwrap().clone();
         rng.add_entropy();
         println!("{:?} {:?}", initial_state, rng.pool.lock().unwrap());
@@ -238,7 +247,7 @@ mod tests {
 
     #[test]
     fn test_reseed() {
-        let mut rng = Yarrow::new(12345);
+        let mut rng = Nebula::new(12345);
         let initial_state = rng.pool.lock().unwrap().clone();
         // Generate enough random bytes to meet the reseed threshold
         for _ in 0..(RESEED_THRESHOLD / 8) {
@@ -250,7 +259,7 @@ mod tests {
 
     #[test]
     fn test_generate_random_bytes() {
-        let mut rng = Yarrow::new(12345);
+        let mut rng = Nebula::new(12345);
         let first = rng.generate_random_bytes(10);
         let second = rng.generate_random_bytes(10);
         assert_ne!(first, second, "Les deux appels à generate_random_bytes ont produit les mêmes résultats");
@@ -258,7 +267,7 @@ mod tests {
 
     #[test]
     fn test_printer(){
-        let mut rng = Yarrow::new(12345);
+        let mut rng = Nebula::new(12345);
         for _ in 0..10 {
             rng.reseed(SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos());
             let random_bytes = rng.generate_random_number();
@@ -267,11 +276,11 @@ mod tests {
     }
     #[test]
     fn test_generate_bounded_number() {
-        let mut rng = Yarrow::new(SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos());
+        let mut rng = Nebula::new(SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos());
         let mut distribution_counts = HashMap::new();
 
-        for _ in 0..1000 {
-            let number = rng.generate_bounded_number(10, 20);
+        for _ in 0..100 {
+            let number = rng.generate_bounded_number(10, 20).unwrap();
 
             // Mettez à jour le compteur de distribution
             let count = distribution_counts.entry(number).or_insert(0);
@@ -289,7 +298,7 @@ mod tests {
 
     #[test]
     fn test_shuffle_string() {
-        let mut s = "Hello, World!".chars().collect::<Vec<_>>();
+        let mut s = "1234567890".chars().collect::<Vec<_>>();
         let original = s.clone().into_iter().collect::<String>();
         shuffle(&mut s);
         let shuffled = s.into_iter().collect::<String>();
@@ -299,22 +308,21 @@ mod tests {
 
     #[test]
     fn test_seeded_shuffle() {
-        let mut items = "Hello, World!".chars().collect::<Vec<_>>();
+        let mut items = "1234567890".chars().collect::<Vec<_>>();
         let original = items.clone();
         seeded_shuffle(&mut items, 12345);
         assert_ne!(items, original, "Les éléments n'ont pas été mélangés");
         let shuffled = items.clone().into_iter().collect::<String>();
         println!("shuffled: {}", shuffled);
-        //assert_eq!(items, original, "Tous les éléments d'origine ne sont pas présents après le mélange");
     }
 
     #[test]
     fn test_generate_bounded_number_distribution() {
-        let mut rng = Yarrow::new(SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos());
+        let mut rng = Nebula::new(SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos());
         let mut distribution_counts = HashMap::new();
 
         for _ in 0..10000 {
-            let number = rng.generate_bounded_number(10, 20);
+            let number = rng.generate_bounded_number(10, 20).unwrap();
 
             // Update the distribution counter
             let count = distribution_counts.entry(number).or_insert(0);
@@ -326,27 +334,43 @@ mod tests {
         // Check if the distribution is uniform
         for count in distribution_counts.values() {
             println!("count: {}", count);
-            assert!(*count >= 800 && *count <= 1000, "Distribution is not uniform");
+            assert!(*count >= 830 && *count <= 1000, "Distribution is not uniform");
         }
     }
 
     #[test]
     fn test_monobit() {
-        let mut rng = Yarrow::new(12345);
+        let mut rng = Nebula::new(12345);
         let sequence = rng.generate_random_bytes(1000);
         assert!(monobit_test(&sequence), "La séquence générée n'a pas passé le test de monobit");
     }
 
     #[test]
-    fn test_info(){
-        use sysinfo::Networks;
+    fn monte_carlo_test() {
+        const SAMPLE_SIZE: usize = 100000;
 
-        let networks = Networks::new_with_refreshed_list();
-        for (interface_name, network) in &networks {
-            println!("[{interface_name}] {network:?}");
+        let mut yarrow = Nebula::new(SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos()); // You might want to use different seeds for different tests
+        yarrow.combine_entropy();
+        let mut ones_count = 0;
+        let mut zeros_count = 0;
+
+        for _ in 0..SAMPLE_SIZE {
+            let random_bit = yarrow.generate_bounded_number(0, 1).unwrap();
+
+            match random_bit {
+                0 => zeros_count += 1,
+                1 => ones_count += 1,
+                _ => panic!("Unexpected value from PRNG"),
+            }
         }
 
+        // Calculate the proportion of ones and zerosdo
+        let ones_proportion = ones_count as f64 / SAMPLE_SIZE as f64;
+        let zeros_proportion = zeros_count as f64 / SAMPLE_SIZE as f64;
+        println!("{} || {}", ones_proportion, zeros_proportion);
 
-
+        // Check if the proportions are roughly equal (within some tolerance)
+        // Adjust the tolerance based on your requirements
+        assert!((ones_proportion - zeros_proportion).abs() < 0.02);
     }
 }

@@ -38,6 +38,7 @@ impl SystemTrayError {
             6 => "Character not found in character set".to_string(),
             7 => "Error when dividing by 8".to_string(),
             8 => "Error no process found".to_string(),
+            9 => "min is superior to max".to_string(),
             _ => format!("Unknown error with code {}", code),
         };
 
