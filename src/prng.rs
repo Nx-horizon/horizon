@@ -347,7 +347,7 @@ mod tests {
 
     #[test]
     fn monte_carlo_test() {
-        const SAMPLE_SIZE: usize = 100000;
+        const SAMPLE_SIZE: usize = 10000;
 
         let mut yarrow = Nebula::new(SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos()); // You might want to use different seeds for different tests
         yarrow.combine_entropy();

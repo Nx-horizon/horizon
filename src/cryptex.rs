@@ -132,11 +132,10 @@ fn insert_random_stars(mut word: Vec<u8>) -> Vec<u8> { ///TODO check if using &m
 }
 
 fn vz_maker(val1: u64, val2:u64, seed: u64) -> Vec<u8>{
-    kdfwagen(&[(val1+val2) as u8,(val1*val2) as u8, (val1%val2) as u8, seed as u8], get_salt().as_bytes(), 10)
+    kdfwagen(&[(val1+val2) as u8,(val1*val2) as u8, (val1%val2) as u8, seed as u8, val1.abs_diff(val2) as u8], get_salt().as_bytes(), 10)
 }
 
-pub(crate) fn encrypt3(plain_text: &str, key1: &Vec<u8>, key2: &Vec<u8>, password: &str) -> Result<Vec<u8>, Box<dyn Error>> {
-    let plain_text = plain_text.as_bytes().to_vec();
+pub(crate) fn encrypt3(plain_text: Vec<u8>, key1: &Vec<u8>, key2: &Vec<u8>, password: &str) -> Result<Vec<u8>, Box<dyn Error>> {
     let inter = insert_random_stars(plain_text);
 
     let val1 = addition_chiffres(key2);
@@ -257,7 +256,53 @@ pub fn unshift_bits(cipher_text: Vec<u8>, key: &[u8]) -> Vec<u8> {
 
 #[cfg(test)]
 mod tests {
+    use std::fs::File;
+    use std::io::{Read, Write};
     use super::*;
+
+    #[test]
+    fn test_crypt_file(){ //still not functionning
+        let key1 = generate_key();
+        let password = "bonjourcestmoi";
+        let key2 = generate_key2(password);
+        let key3 = generate_key2(password);
+
+
+        // Read the content of the file
+        let mut file_content = Vec::new();
+        let mut file = File::open("invoicesample.pdf").unwrap();
+        file.read_to_end(&mut file_content).expect("TODO: panic message");
+
+        // Encrypt the content
+        //let encrypted_content = encrypt3(file_content.clone(), &key1, &key2.unwrap(), password);
+        let a = vz_maker(123456789, 368291, 567675);
+        let encrypted_content = shift_bits(file_content.clone(), &a);
+        // Write the encrypted content to the output file
+        let mut output_file = File::create("invoicesample2.pdf").unwrap();
+        let ac = encrypted_content;
+        output_file.write_all(&ac.clone()).expect("TODO: panic message");
+
+
+        //reverse process
+
+        // Read the content of the file
+        //let mut file_content2 = Vec::new();
+        //let mut file = File::open("invoicesample2.pdf").unwrap();
+        //file.read_to_end(&mut file_content2).expect("TODO: panic message");
+
+        // dcrypt the content
+        //let dcrypted_content = decrypt3(ac, &key1, &key3.unwrap(), password);
+        let dcrypted_content = unshift_bits(ac, &a);
+
+        let copi = dcrypted_content;
+
+        assert_eq!(copi, file_content);
+
+        // Write the encrypted content to the output file
+        let mut output_file = File::create("invoicesample3.pdf").unwrap();
+        output_file.write_all(&copi).expect("TODO: panic message");
+    }
+
 
     #[test]
     fn test_table3() {
@@ -324,7 +369,7 @@ mod tests {
     #[test]
     fn test_encrypt3_decrypt3() {
         // let plain_text = "cest moi le le grand test du matin et je à suis content";
-        let plain_text = "cest moi le le grand test du matin et je à suis content éèù:;?";
+        let plain_text = "cest moi le le grand test du matin et je à suis content éèù:;? αβγδεζηθικλμνξοπρστυφχψω";
         let key1 = generate_key();
         let pass = "LeMOTdePAsse34!";
 
@@ -341,7 +386,7 @@ mod tests {
         let plain_text_chars = plain_text.as_bytes().to_vec();
 
         // Test encrypt3
-        match encrypt3(plain_text, &key1, &key2, pass) {
+        match encrypt3(plain_text.as_bytes().to_vec(), &key1, &key2, pass) {
             Ok(encrypted) => {
                 println!("Encrypted: {:?}", encrypted);
                 assert_ne!(encrypted, plain_text_chars);
