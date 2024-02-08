@@ -2,12 +2,13 @@
 
 ![Logo](./proxy-image.png)
 
-This project implements a cryptography system based on character permutation within a three-dimensional table, using securely generated keys. Encryption is performed using a combination of techniques, including permutation operations, shift bits and XOR encryption. it also have it's own prng generator.
+Horizon is a secure and flexible encryption tool designed for various use cases. It provides functionalities for generating cryptographic keys, encrypting and decrypting text using a customized algorithm, and includes a pseudo-random number generator (PRNG) for additional security features.
 
 ## Table of Contents
 
 - [Introduction](#introduction)
 - [Features](#features)
+- [Components](#Components)
 - [Requirements](#requirements)
 - [Installation](#installation)
 - [Usage](#usage)
@@ -21,10 +22,34 @@ The system relies on a three-dimensional table of characters generated from a gi
 
 ## Features
 
-- **Encryption and Decryption:** The program provides functions for encrypting and decrypting messages using dynamically generated keys.
-- **Character Tables:** Character tables are generated to introduce high entropy into the encryption process.
-- **Key Security:** Encryption keys are generated using robust cryptographic techniques.
-- **Prng generator:** Implement unique version of yarrow to generate pseudo random number.
+- **Key Generation:** Horizon allows you to generate cryptographic keys based on your machine's MAC address and other system information.
+- **Custom Encryption Algorithm:** The project implements a custom encryption algorithm that shuffles characters based on two keys and a password. This algorithm ensures a unique and secure encryption process.
+- **Pseudo-Random Number Generator (PRNG):** Horizon includes a PRNG named Nebula, which gathers entropy from various system sources to generate random numbers.
+- **Key Derivation Function (KDF):** The Key Derivation Function in Horizon utilizes HMAC-BLAKE3-512 for secure key derivation based on a password and salt.
+
+## Components
+1. Encryption Module
+
+    - **encrypt3:** Encrypts plain text using the custom encryption algorithm.
+    - **decrypt3:** Decrypts cipher text using the custom encryption algorithm.
+    - **xor_crypt3:** Performs XOR-based encryption or decryption on a given byte slice.
+    - **shift_bits and unshift_bits:** Shifts or unshifts bits in a byte slice based on a key.
+
+2. PRNG Module (Nebula)
+
+    - **Nebula:** A pseudo-random number generator that gathers entropy from system sources to generate random numbers.
+    - **add_entropy:** Adds entropy to the PRNG.
+    - **generate_bounded_number:** Generates a random number within a specified range.
+    - **shuffle and seeded_shuffle:** Functions to shuffle slices randomly.
+
+3. KDF Module
+
+    - **hmac:** Computes HMAC-BLAKE3 for the Key Derivation Function (KDF).
+    - **kdfwagen:** Performs the Key Derivation Function (KDF) based on HMAC-BLAKE3 for secure key derivation.
+
+4. Error Handling (SystemTrayError)
+
+    - **SystemTrayError:** Custom error type with specific error codes and messages.
 
 ## Requirements
 
