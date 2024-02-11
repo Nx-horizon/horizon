@@ -114,7 +114,8 @@ fn generate_key2(seed: &str) -> Result<Vec<u8>, SystemTrayError> {
 
 fn insert_random_stars(mut word: Vec<u8>) -> Vec<u8> { ///TODO check if using &mut is ok
     let mut rng = Nebula::new(SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos());
-    rng.add_entropy(); //TODO check with match
+
+    rng.add_entropy().expect("TODO: panic message"); //TODO check with match
 
     let num_stars: usize = rng.generate_bounded_number((word.len()/2) as u128, (word.len()*2) as u128).unwrap() as usize;
 
