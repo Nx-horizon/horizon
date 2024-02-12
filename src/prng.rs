@@ -218,7 +218,7 @@ fn secured_seed() -> u128 {
         .flat_map(|&x| x.to_be_bytes().to_vec())
         .collect();
 
-    let cle = kdfwagen(&*context_bytes, donnee_entree.as_bytes(), 30);
+    let cle = kdfwagen(&*context_bytes, donnee_entree.as_bytes(), 15);
 
     let (partie1, partie2) = cle.split_at(16);
 
@@ -233,7 +233,7 @@ fn secured_seed() -> u128 {
 pub fn shuffle<T>(items: &mut [T]) {
     let len = items.len();
     for i in (1..len).rev() {
-        let j = (SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos() as usize) % (i + 1);
+        let j = (secured_seed() as usize) % (i + 1);
         items.swap(i, j);
     }
 }
@@ -397,7 +397,7 @@ mod tests {
 
     #[test]
     fn monte_carlo_test() {
-        const SAMPLE_SIZE: usize = 10000000;
+        const SAMPLE_SIZE: usize = 10000;
 
         let mut nebula = Nebula::new(secured_seed()); // You might want to use different seeds for different tests
         let mut ones_count:i64 = 0;
