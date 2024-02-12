@@ -87,7 +87,7 @@ pub fn generate_key() -> Vec<u8> {
             returner
         },
         Ok(None) => {
-            println!("No MAC address found."); ///TODO use systemTrayError
+            eprintln!("No MAC address found."); ///TODO use systemTrayError
             Vec::new()
         },
         Err(e) => {
@@ -115,7 +115,7 @@ fn generate_key2(seed: &str) -> Result<Vec<u8>, SystemTrayError> {
 fn insert_random_stars(mut word: Vec<u8>) -> Vec<u8> { ///TODO check if using &mut is ok
     let mut rng = Nebula::new(SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos());
 
-    rng.add_entropy().expect("TODO: panic message"); //TODO check with match
+    let _ = rng.add_entropy(); //TODO check with match
 
     let num_stars: usize = rng.generate_bounded_number((word.len()/2) as u128, (word.len()*2) as u128).unwrap() as usize;
 
@@ -277,11 +277,11 @@ mod tests {
         // Encrypt the content
         //let encrypted_content = encrypt3(file_content.clone(), &key1, &key2.unwrap(), password);
         let a = vz_maker(123456789, 368291, 567675);
-        let encrypted_content = shift_bits(file_content.clone(), &a);
+        let mut encrypted_content = shift_bits(file_content.clone(), &a);
         // Write the encrypted content to the output file
-        let mut output_file = File::create("invoicesample2.pdf").unwrap();
-        let ac = encrypted_content;
-        output_file.write_all(&ac.clone()).expect("TODO: panic message");
+        //let mut output_file = File::create("invoicesample2.pdf").unwrap();
+        xor_crypt3(&mut encrypted_content, &a);
+        //output_file.write_all(&encrypted_content.clone()).expect("TODO: panic message");
 
 
         //reverse process
@@ -293,21 +293,22 @@ mod tests {
 
         // dcrypt the content
         //let dcrypted_content = decrypt3(ac, &key1, &key3.unwrap(), password);
-        let dcrypted_content = unshift_bits(ac, &a);
+        xor_crypt3(&mut encrypted_content, &a);
+        let dcrypted_content = unshift_bits(encrypted_content, &a);
 
         let copi = dcrypted_content;
 
         assert_eq!(copi, file_content);
 
         // Write the encrypted content to the output file
-        let mut output_file = File::create("invoicesample3.pdf").unwrap();
-        output_file.write_all(&copi).expect("TODO: panic message");
+        //let mut output_file = File::create("invoicesample3.pdf").unwrap();
+        //output_file.write_all(&copi).expect("TODO: panic message");
     }
 
 
     #[test]
     fn test_table3() {
-        let size = 10;
+        let size = 255;
 
         let table = table3(size, 1234567890);
 
@@ -328,18 +329,19 @@ mod tests {
     #[test]
     fn test_get_salt() {
         let salt = get_salt();
-        println!("Salt: {:?}", salt);
+        assert_ne!(salt.len(), 0);
     }
 
     #[test]
     fn test_transpose() {
         let word = "Hello World!".as_bytes().to_vec();
-
+        let mut transposed = word.clone();
         for shift in 0..word.len() {
-            let transposed = transpose(word.clone(), shift).unwrap();
-
-            println!("Shift: {}, Transposed: {:?}", shift, transposed);
+            transposed = transpose(word.clone(), shift).unwrap();
+            println!("Shift: {}, Transposed: {:?}, real: {}", shift, transposed, String::from_utf8_lossy(&transposed));
         }
+
+        assert_ne!(word, transposed);
     }
 
     #[test]
@@ -348,6 +350,7 @@ mod tests {
 
         println!("Key size : {}", key.len());
         println!("Key: {:?}", key);
+        assert_ne!(key.len(), 0);
     }
 
     #[test]
@@ -357,14 +360,17 @@ mod tests {
 
         println!("Key size : {}", key.len());
         println!("Key: {:?}", key);
+
+        assert_ne!(key.len(), 0)
     }
 
     #[test]
     fn test_insert_random_stars() {
         let word = "Hello World!".as_bytes().to_vec();
-        let word = insert_random_stars(word);
+        let word2 = insert_random_stars(word.clone());
 
-        println!("Word: {:?}", word);
+        println!("Word: {:?}", word2);
+        assert_ne!(word, word2);
     }
 
     #[test]
