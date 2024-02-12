@@ -197,7 +197,7 @@ fn data_computer() -> Result<[u128; 10], SystemTrayError> {
 
     let pid = std::process::id();
 
-    return Ok([time, pid.into(), total_memory as u128, used_memory as u128, total_swap as u128, nb_cpus.try_into().unwrap(), pid_disk_usage, uptime, boot_time, network_data as u128]);
+     Ok([time, pid.into(), total_memory as u128, used_memory as u128, total_swap as u128, nb_cpus.try_into().unwrap(), pid_disk_usage, uptime, boot_time, network_data as u128])
 
 
 }
@@ -218,16 +218,14 @@ fn secured_seed() -> u128 {
         .flat_map(|&x| x.to_be_bytes().to_vec())
         .collect();
 
-    let cle = kdfwagen(&*context_bytes, donnee_entree.as_bytes(), 15);
+    let cle = kdfwagen(&context_bytes, donnee_entree.as_bytes(), 15);
 
     let (partie1, partie2) = cle.split_at(16);
 
     let somme1: u128 = partie1.iter().map(|&x| x as u128).sum();
     let somme2: u128 = partie2.iter().map(|&x| x as u128).sum();
 
-    let resultat = somme1 * somme2;
-
-    resultat
+    somme1 * somme2
 }
 
 pub fn shuffle<T>(items: &mut [T]) {
