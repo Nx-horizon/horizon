@@ -87,7 +87,7 @@ pub fn generate_key() -> Vec<u8> {
             returner
         },
         Ok(None) => {
-            println!("No MAC address found."); ///TODO use systemTrayError
+            eprintln!("No MAC address found."); ///TODO use systemTrayError
             Vec::new()
         },
         Err(e) => {
@@ -114,7 +114,8 @@ fn generate_key2(seed: &str) -> Result<Vec<u8>, SystemTrayError> {
 
 fn insert_random_stars(mut word: Vec<u8>) -> Vec<u8> { ///TODO check if using &mut is ok
     let mut rng = Nebula::new(SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos());
-    rng.add_entropy(); //TODO check with match
+
+    let _ = rng.add_entropy(); //TODO check with match
 
     let num_stars: usize = rng.generate_bounded_number((word.len()/2) as u128, (word.len()*2) as u128).unwrap() as usize;
 

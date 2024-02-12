@@ -111,7 +111,7 @@ impl Nebula {
         let entropy_bytes = entropy.to_be_bytes();
 
         let mut hasher = Hasher::new();
-        hasher.update(&self.pool.lock().unwrap().make_contiguous());
+        hasher.update(self.pool.lock().unwrap().make_contiguous());
         hasher.update(&entropy_bytes);
 
         let mut hash = [0; 64];
