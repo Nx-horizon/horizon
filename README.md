@@ -92,4 +92,4 @@ Contributions are welcome! Before submitting changes, please refer to [CONTRIBUT
 
 ## License
 
-This project is licensed under the [MIT License](LICENSE), which means you are free to use, modify, and distribute it as you see fit.
+This project is licensed under the [Apache License](LICENSE).
