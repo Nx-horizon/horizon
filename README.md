@@ -60,7 +60,7 @@ The system relies on a three-dimensional table of characters generated from a gi
 1. Clone the repository:
    ```bash
    git clone https://github.com/Cameleon00722/horizon.git
-   cd your-project
+   cd horizon
    ```
 
 2. Compile the program:
@@ -73,7 +73,7 @@ The system relies on a three-dimensional table of characters generated from a gi
 Run the program using the following command:
 
 ```bash
-./target/release/program-name
+./target/release/horizon
 ```
 
 Follow the displayed instructions to encrypt and decrypt messages.
