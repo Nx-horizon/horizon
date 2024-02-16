@@ -55,7 +55,7 @@ fn stable_indices(word_len: usize, shift: usize) -> Vec<usize> {
         let mut hash_b = [0; 64];
         hasher.finalize_xof().fill(&mut hash_b);
 
-        return hash_a.cmp(&hash_b);
+        hash_a.cmp(&hash_b)
     });
 
     let shifted_indices: Vec<usize> = indices
@@ -103,7 +103,7 @@ pub fn generate_key() -> Vec<u8> {
 
 }
 
-fn addition_chiffres(adresse_mac: &Vec<u8>) -> u64 {
+fn addition_chiffres(adresse_mac: &[u8]) -> u64 {
     adresse_mac.iter().map(|&x| x as u64).sum()
 }
 
@@ -172,7 +172,7 @@ pub(crate) fn encrypt3(plain_text: Vec<u8>, key1: &Vec<u8>, key2: &Vec<u8>, pass
                 let col = col % characters.len();
 
                 if table_2d < table_len && row < table[table_2d].len() && col < table[table_2d][row].len() {
-                    Some(table[table_2d][row][col].clone())
+                    Some(table[table_2d][row][col])
                 } else {
                     None
                 }

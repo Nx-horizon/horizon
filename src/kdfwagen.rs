@@ -45,7 +45,7 @@ fn hmac(key: &[u8], message: &[u8]) -> [u8; 64] {
     let ipad: Vec<u8> = adjusted_key.iter().map(|&b| b ^ 0x36).collect();
     let opad: Vec<u8> = adjusted_key.iter().map(|&b| b ^ 0x5C).collect();
 
-    let inner_input: Vec<u8> = ipad.into_iter().chain(message.into_iter().cloned()).collect();
+    let inner_input: Vec<u8> = ipad.into_iter().chain(message.iter().cloned()).collect();
 
     let mut inner_hasher = Hasher::new();
     inner_hasher.update(&inner_input);
