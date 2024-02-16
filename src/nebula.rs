@@ -397,7 +397,7 @@ mod tests {
     fn monte_carlo_test() {
         const SAMPLE_SIZE: usize = 10000;
 
-        let mut nebula = Nebula::new(secured_seed()); // You might want to use different seeds for different tests
+        let mut nebula = Nebula::new(secured_seed());
         let mut ones_count:i64 = 0;
         let mut zeros_count:i64 = 0;
 
