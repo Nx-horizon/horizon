@@ -273,9 +273,9 @@ mod tests {
 
     #[test]
     fn test_add_entropy() {
-        let mut rng = Nebula::new(12345);
+        let rng = Nebula::new(12345);
         let initial_state = rng.pool.lock().unwrap().clone();
-        rng.add_entropy();
+        let _ = rng.add_entropy();
         println!("{:?} {:?}", initial_state, rng.pool.lock().unwrap());
         assert_ne!(*rng.pool.lock().unwrap(), initial_state, "L'ajout d'entropie n'a pas modifié l'état du générateur");
     }
