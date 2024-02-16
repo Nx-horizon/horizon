@@ -1,7 +1,7 @@
 mod systemtrayerror;
 mod kdfwagen;
 mod cryptex;
-mod prng;
+mod nebula;
 
 use std::collections::hash_map::DefaultHasher;
 use rand::Rng;

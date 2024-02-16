@@ -8,14 +8,14 @@ use crate::{kdfwagen};
 use crate::systemtrayerror::SystemTrayError;
 use sysinfo::System;
 
-use crate::prng::{self, Nebula};
+use crate::nebula::{self, Nebula};
 
 const NUM_ITERATIONS: usize = 30;
 
 fn table3(size: usize, seed: u64) -> Vec<Vec<Vec<u8>>> {
     let mut characters: Vec<u8> = (0..=255).collect();
 
-    prng::seeded_shuffle(&mut characters, seed as usize);
+    nebula::seeded_shuffle(&mut characters, seed as usize);
 
     (0..size).into_par_iter().chunks(1000).map(|i_chunk| {
         i_chunk.into_par_iter().map(|i| {
@@ -123,7 +123,7 @@ fn insert_random_stars(mut word: Vec<u8>) -> Vec<u8> { ///TODO check if using &m
     let mut stars: Vec<u8> = vec![94; num_stars];
     let mut indices: Vec<usize> = (0..=word.len()).collect();
 
-    prng::shuffle(&mut indices);
+    nebula::shuffle(&mut indices);
 
     for index in indices.into_iter().take(num_stars) {
         word.insert(index, stars.pop().unwrap());
@@ -146,7 +146,7 @@ pub(crate) fn encrypt3(plain_text: Vec<u8>, key1: &Vec<u8>, key2: &Vec<u8>, pass
     let seed= val2 * val1;
     let table = table3(characters.len(), seed);
 
-    prng::seeded_shuffle(&mut characters, seed as usize);
+    nebula::seeded_shuffle(&mut characters, seed as usize);
 
     let char_positions: HashMap<_, _> = characters.par_iter().enumerate().map(|(i, &c)| (c, i)).collect();
 
@@ -195,7 +195,7 @@ pub(crate) fn decrypt3(cipher_text: Vec<u8>, key1: &Vec<u8>, key2: &Vec<u8>, pas
     let seed = val2 * val1 ;
 
     let mut characters: Vec<u8> = (0..=255).collect();
-    prng::seeded_shuffle(&mut characters, seed as usize);
+    nebula::seeded_shuffle(&mut characters, seed as usize);
 
     let table = table3(characters.len(), seed);
 
