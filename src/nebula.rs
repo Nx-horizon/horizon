@@ -51,7 +51,7 @@ impl Nebula {
 
     // Fonction pour mélanger un tableau
     fn shuffle_array<T>(&self, array: &mut [T]) {
-        let mut rng = Nebula::new(secured_seed()); // use generate random number here
+        let mut rng = Nebula::new(SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos()); //TODO implement secure seed
         rng.combine_entropy();
         let len = array.len();
         for i in (1..len).rev() {

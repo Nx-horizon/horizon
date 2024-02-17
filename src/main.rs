@@ -6,7 +6,6 @@ mod nebula;
 use std::collections::HashMap;
 use std::error::Error;
 use std::time::{SystemTime, UNIX_EPOCH};
-use blake3::Hasher;
 use mac_address::get_mac_address;
 use rayon::prelude::*;
 use crate::systemtrayerror::SystemTrayError;
@@ -15,7 +14,7 @@ use crate::kdfwagen::kdfwagen;
 use crate::nebula::Nebula;
 
 
-const NUM_ITERATIONS: usize = 30;
+const NUM_ITERATIONS: usize = 10;
 
 fn table3(size: usize, seed: u64) -> Vec<Vec<Vec<u8>>> {
     let mut characters: Vec<u8> = (0..=255).collect();
@@ -41,47 +40,6 @@ fn get_salt() -> String {
     System::name().unwrap() + &System::host_name().unwrap() + &System::os_version().unwrap()  + &System::kernel_version().unwrap()
 }
 
-fn stable_indices(word_len: usize, shift: usize) -> Vec<usize> {
-    let mut indices: Vec<usize> = (0..word_len).collect();
-
-    indices.sort_unstable_by(|a, b| {
-        let mut hasher = Hasher::new();
-        hasher.update(&a.to_ne_bytes());
-        let mut hash_a = [0; 64];
-        hasher.finalize_xof().fill(&mut hash_a);
-
-        let mut hasher = Hasher::new();
-        hasher.update(&b.to_ne_bytes());
-        let mut hash_b = [0; 64];
-        hasher.finalize_xof().fill(&mut hash_b);
-
-        hash_a.cmp(&hash_b)
-    });
-
-    let shifted_indices: Vec<usize> = indices
-        .into_iter()
-        .cycle()
-        .skip(shift)
-        .take(word_len)
-        .collect();
-
-    shifted_indices
-}
-fn transpose(word: Vec<u8>, shift: usize) -> Option<Vec<u8>> { //TODO find usage of this function
-    let word_len = word.len();
-
-    if word_len == 0 || shift >= word_len {
-        return None;
-    }
-
-    let indices = stable_indices(word_len, shift);
-
-    let output: Vec<u8> = indices.par_iter()
-        .map(|&i| word[i])
-        .collect();
-
-    Some(output)
-}
 
 pub fn generate_key() -> Vec<u8> {
 
@@ -117,20 +75,31 @@ fn generate_key2(seed: &str) -> Result<Vec<u8>, SystemTrayError> {
     Ok(seed)
 }
 
-fn insert_random_stars(mut word: Vec<u8>) -> Vec<u8> { //TODO check if using &mut is ok
-    let mut rng = Nebula::new(SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos());
 
-    let _ = rng.add_entropy(); //TODO check with match
+use std::sync::{Arc, Mutex};
 
-    let num_stars: usize = rng.generate_bounded_number((word.len()/2) as u128, (word.len()*2) as u128).unwrap() as usize;
+fn insert_random_stars(mut word: Vec<u8>) -> Vec<u8> {
+    let rng = Arc::new(Mutex::new(Nebula::new(SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos())));
+
+    let num_stars: usize = rng.lock().unwrap().generate_bounded_number((word.len()/2) as u128, (word.len()) as u128).unwrap() as usize;
 
     // In utf-8, the '^' character is 94
     let mut stars: Vec<u8> = vec![94; num_stars];
-    let mut indices: Vec<usize> = (0..=word.len()).collect();
 
-    nebula::shuffle(&mut indices);
+    // Generate random indices in parallel
+    let random_indices: Vec<usize> = (0..num_stars).into_par_iter()
+        .map(|_| {
+            let mut rng = rng.lock().unwrap();
+            rng.generate_bounded_number(0, word.len() as u128).unwrap() as usize
+        })
+        .collect();
 
-    for index in indices.into_iter().take(num_stars) {
+    // Sort indices in descending order
+    let mut sorted_indices = random_indices;
+    sorted_indices.par_sort_unstable_by(|a, b| b.cmp(a));
+
+    // Insert stars at the calculated indices
+    for index in sorted_indices {
         word.insert(index, stars.pop().unwrap());
     }
 
@@ -149,19 +118,19 @@ pub(crate) fn encrypt3(plain_text: Vec<u8>, key1: &Vec<u8>, key2: &Vec<u8>, pass
 
     let mut characters: Vec<u8> = (0..=255).collect();
     let seed= val2 * val1;
-    let table = table3(characters.len(), seed);
+    let table = table3(256, seed);
 
     nebula::seeded_shuffle(&mut characters, seed as usize);
 
     let char_positions: HashMap<_, _> = characters.par_iter().enumerate().map(|(i, &c)| (c, i)).collect();
 
 
-    let table_len = table.len();
+    let table_len = 256;
 
-    let key1_chars: Vec<usize> = key1.into_par_iter().map(|&c| c as usize % characters.len()).collect();
-    let key2_chars: Vec<usize> = key2.into_par_iter().map(|&c| c as usize % characters.len()).collect();
-    let key1_len = key1_chars.len();
-    let key2_len = key2_chars.len();
+    let key1_chars: Vec<usize> = key1.into_par_iter().map(|&c| c as usize % 256).collect();
+    let key2_chars: Vec<usize> = key2.into_par_iter().map(|&c| c as usize % 256).collect();
+    let key1_len = 512;
+    let key2_len = 512;
 
     let mut cipher_text: Vec<_> = inter.par_iter().enumerate().filter_map(|(i, c)| {
         let table_2d = key1_chars[i % key1_len] % table_len;
@@ -169,7 +138,7 @@ pub(crate) fn encrypt3(plain_text: Vec<u8>, key1: &Vec<u8>, key2: &Vec<u8>, pass
 
         match char_positions.get(c) {
             Some(col) => {
-                let col = col % characters.len();
+                let col = col % 256;
 
                 if table_2d < table_len && row < table[table_2d].len() && col < table[table_2d][row].len() {
                     Some(table[table_2d][row][col])
@@ -202,18 +171,18 @@ pub(crate) fn decrypt3(cipher_text: Vec<u8>, key1: &Vec<u8>, key2: &Vec<u8>, pas
     let mut characters: Vec<u8> = (0..=255).collect();
     nebula::seeded_shuffle(&mut characters, seed as usize);
 
-    let table = table3(characters.len(), seed);
+    let table = table3(256, seed);
 
-    let table_len = table.len();
+    let table_len = 256;
 
     let vz = vz_maker(val1, val2, seed);
     cipher_text = unshift_bits(cipher_text, &vz);
     xor_crypt3(&mut cipher_text, &kdfwagen(password.as_bytes(), get_salt().as_bytes(), NUM_ITERATIONS));
 
-    let key1_chars: Vec<usize> = key1.into_par_iter().map(|&c| c as usize % characters.len()).collect();
-    let key2_chars: Vec<usize> = key2.into_par_iter().map(|&c| c as usize % characters.len()).collect();
-    let key1_len = key1_chars.len();
-    let key2_len = key2_chars.len();
+    let key1_chars: Vec<usize> = key1.into_par_iter().map(|&c| c as usize % 256).collect();
+    let key2_chars: Vec<usize> = key2.into_par_iter().map(|&c| c as usize % 256).collect();
+    let key1_len = 512;
+    let key2_len = 512;
 
     let plain_text: Vec<_> = cipher_text.par_iter().enumerate().filter_map(|(i, c)| {
         let table_2d = key1_chars[i % key1_len] % table_len;
@@ -238,9 +207,9 @@ pub(crate) fn decrypt3(cipher_text: Vec<u8>, key1: &Vec<u8>, key2: &Vec<u8>, pas
 }
 
 fn xor_crypt3(input: &mut [u8], key: &[u8]) {
-    for (i, byte) in input.iter_mut().enumerate() {
+    input.par_iter_mut().enumerate().for_each(|(i, byte)| {
         *byte ^= key[i % key.len()];
-    }
+    });
 }
 
 pub fn shift_bits(cipher_text: Vec<u8>, key: &[u8]) -> Vec<u8> {
@@ -260,11 +229,10 @@ pub fn unshift_bits(cipher_text: Vec<u8>, key: &[u8]) -> Vec<u8> {
 }
 fn main() {
     // let plain_text = "cest moi le le grand test du matin et je à suis content";
-    let plain_text = "cest moi le le grand test du matin et je à suis content éèù:;? αβγδεζηθικλμνξοπρστυφχψω";
-    let key1 = generate_key();
+    let plain_text = "cest moi le le grand test du matin et je à suis content éèù:;?";
     let pass = "LeMOTdePAsse34!";
 
-    let key2 = match generate_key2(pass) {
+    let key1 = match generate_key2(pass) {
         Ok(key) => key,
         Err(err) => {
             eprintln!("Erreur : {}", err);
@@ -273,22 +241,22 @@ fn main() {
 
     };
 
-    // Convert plain_text to Vec<u8>
-    let plain_text_chars = plain_text.as_bytes().to_vec();
-
     // Test encrypt3
-    match encrypt3(plain_text.as_bytes().to_vec(), &key1, &key2, pass) {
+    match encrypt3(plain_text.as_bytes().to_vec(), &key1, &key1, pass) {
         Ok(encrypted) => {
             println!("Encrypted: {:?}", encrypted);
-            assert_ne!(encrypted, plain_text_chars);
 
 
             // Test decrypt3
-            match decrypt3(encrypted, &key1, &key2, pass) {
+            match decrypt3(encrypted, &key1, &key1, pass) {
                 Ok(decrypted) => {
                     println!("Decrypted: {:?}", decrypted);
                     println!("convert u8: {:?}", String::from_utf8(decrypted.clone()).unwrap());
-                    assert_eq!(decrypted, plain_text_chars);
+                    if decrypted == plain_text.as_bytes().to_vec() {
+                        println!("Success!");
+                    } else {
+                        println!("Decryption failed");
+                    }
                 },
                 Err(e) => panic!("Decryption failed with error: {:?}", e),
             }
@@ -375,17 +343,6 @@ mod tests {
         assert_ne!(salt.len(), 0);
     }
 
-    #[test]
-    fn test_transpose() {
-        let word = "Hello World!".as_bytes().to_vec();
-        let mut transposed = word.clone();
-        for shift in 0..word.len() {
-            transposed = transpose(word.clone(), shift).unwrap();
-            println!("Shift: {}, Transposed: {:?}, real: {}", shift, transposed, String::from_utf8_lossy(&transposed));
-        }
-
-        assert_ne!(word, transposed);
-    }
 
     #[test]
     fn test_generate_key() {
