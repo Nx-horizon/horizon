@@ -2,7 +2,8 @@ use std::collections::{HashSet, VecDeque};
 use std::sync::Mutex;
 use std::time::{SystemTime, UNIX_EPOCH};
 use blake3::Hasher;
-
+use rayon::prelude::{IntoParallelIterator, IntoParallelRefIterator};
+use rayon::iter::ParallelIterator;
 
 use sysinfo::{Networks, Pid, System};
 use crate::kdfwagen::kdfwagen;
@@ -51,7 +52,7 @@ impl Nebula {
 
     // Fonction pour mélanger un tableau
     fn shuffle_array<T>(&self, array: &mut [T]) {
-        let mut rng = Nebula::new(SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos()); //TODO implement secure seed
+        let mut rng = Nebula::new(secured_seed());
         rng.combine_entropy();
         let len = array.len();
         for i in (1..len).rev() {
@@ -170,21 +171,24 @@ fn data_computer() -> Result<[u128; 10], SystemTrayError> {
     let uptime = System::uptime() as u128;
     let boot_time =  System::uptime() as u128;
 
-    let mut network_data = 0;
     let networks = Networks::new_with_refreshed_list();
-    for (_, network) in &networks {
-        network_data += network.received() + network.total_received() + network.transmitted() + network.total_transmitted() + network.packets_received() + network.total_packets_received() + network.packets_transmitted() + network.total_packets_transmitted() + network.errors_on_received() + network.total_errors_on_received() + network.errors_on_transmitted();
-    }
+    let network_data: u128 = networks.iter()
+        .map(|(_, network)| {
+            network.received() as u128 + network.total_received() as u128 + network.transmitted() as u128  + network.total_transmitted() as u128  + network.packets_received() as u128  + network.total_packets_received() as u128  + network.packets_transmitted() as u128  + network.total_packets_transmitted() as u128  + network.errors_on_received() as u128  + network.total_errors_on_received() as u128  + network.errors_on_transmitted() as u128
+        })
+        .sum();
 
     let pid_set: HashSet<&Pid> = sys.processes().keys().collect();
 
-    let pid_disk_usage: u128 = pid_set.into_iter().map(|&pid| {
-        if let Some(process) = sys.process(pid) {
-            process.disk_usage().total_read_bytes as u128
-        } else {
-            0
-        }
-    }).sum();
+    let pid_disk_usage: u128 = pid_set.into_par_iter() // use into_par_iter() for parallel iteration
+        .map(|&pid| {
+            if let Some(process) = sys.process(pid) {
+                process.disk_usage().total_read_bytes as u128
+            } else {
+                0
+            }
+        })
+        .sum();
 
     if pid_disk_usage == 0 {
         return Err(SystemTrayError::new(8));
@@ -197,9 +201,7 @@ fn data_computer() -> Result<[u128; 10], SystemTrayError> {
 
     let pid = std::process::id();
 
-     Ok([time, pid.into(), total_memory as u128, used_memory as u128, total_swap as u128, nb_cpus.try_into().unwrap(), pid_disk_usage, uptime, boot_time, network_data as u128])
-
-
+    Ok([time, pid.into(), total_memory as u128, used_memory as u128, total_swap as u128, nb_cpus.try_into().unwrap(), pid_disk_usage, uptime, boot_time, network_data])
 }
 
 // Fonction secured_seed
@@ -214,7 +216,7 @@ fn secured_seed() -> u128 {
     let contexte = data_computer().unwrap();
 
     let context_bytes: Vec<u8> = contexte
-        .iter()
+        .par_iter() // use par_iter() for parallel iteration
         .flat_map(|&x| x.to_be_bytes().to_vec())
         .collect();
 
@@ -227,7 +229,6 @@ fn secured_seed() -> u128 {
 
     somme1 * somme2
 }
-
 pub fn shuffle<T>(items: &mut [T]) {
     let len = items.len();
     for i in (1..len).rev() {

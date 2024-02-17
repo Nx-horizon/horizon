@@ -15,6 +15,7 @@ use crate::nebula::Nebula;
 
 
 const NUM_ITERATIONS: usize = 10;
+const KEY_LENGTH: usize = 512;
 
 fn table3(size: usize, seed: u64) -> Vec<Vec<Vec<u8>>> {
     let mut characters: Vec<u8> = (0..=255).collect();
@@ -62,7 +63,7 @@ pub fn generate_key() -> Vec<u8> {
 }
 
 fn addition_chiffres(adresse_mac: &[u8]) -> u64 {
-    adresse_mac.iter().map(|&x| x as u64).sum()
+    adresse_mac.par_iter().map(|&x| x as u64).sum()
 }
 
 fn generate_key2(seed: &str) -> Result<Vec<u8>, SystemTrayError> {
@@ -129,8 +130,8 @@ pub(crate) fn encrypt3(plain_text: Vec<u8>, key1: &Vec<u8>, key2: &Vec<u8>, pass
 
     let key1_chars: Vec<usize> = key1.into_par_iter().map(|&c| c as usize % 256).collect();
     let key2_chars: Vec<usize> = key2.into_par_iter().map(|&c| c as usize % 256).collect();
-    let key1_len = 512;
-    let key2_len = 512;
+    let key1_len = KEY_LENGTH;
+    let key2_len = KEY_LENGTH;
 
     let mut cipher_text: Vec<_> = inter.par_iter().enumerate().filter_map(|(i, c)| {
         let table_2d = key1_chars[i % key1_len] % table_len;
@@ -181,8 +182,8 @@ pub(crate) fn decrypt3(cipher_text: Vec<u8>, key1: &Vec<u8>, key2: &Vec<u8>, pas
 
     let key1_chars: Vec<usize> = key1.into_par_iter().map(|&c| c as usize % 256).collect();
     let key2_chars: Vec<usize> = key2.into_par_iter().map(|&c| c as usize % 256).collect();
-    let key1_len = 512;
-    let key2_len = 512;
+    let key1_len = KEY_LENGTH;
+    let key2_len = KEY_LENGTH;
 
     let plain_text: Vec<_> = cipher_text.par_iter().enumerate().filter_map(|(i, c)| {
         let table_2d = key1_chars[i % key1_len] % table_len;
@@ -371,5 +372,17 @@ mod tests {
 
         println!("Word: {:?}", word2);
         assert_ne!(word, word2);
+    }
+
+
+    #[test]
+    fn test_shift_unshift_bits() {
+        let original_data = vec![1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
+        let key = vec![1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
+
+        let shifted_data = shift_bits(original_data.clone(), &key);
+        let unshifted_data = unshift_bits(shifted_data, &key);
+
+        assert_eq!(original_data, unshifted_data);
     }
 }
