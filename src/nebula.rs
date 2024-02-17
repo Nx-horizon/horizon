@@ -172,7 +172,7 @@ fn data_computer() -> Result<[u128; 10], SystemTrayError> {
     let boot_time =  System::uptime() as u128;
 
     let networks = Networks::new_with_refreshed_list();
-    let network_data: u128 = networks.iter()
+    let network_data: u128 = networks.par_iter()
         .map(|(_, network)| {
             network.received() as u128 + network.total_received() as u128 + network.transmitted() as u128  + network.total_transmitted() as u128  + network.packets_received() as u128  + network.total_packets_received() as u128  + network.packets_transmitted() as u128  + network.total_packets_transmitted() as u128  + network.errors_on_received() as u128  + network.total_errors_on_received() as u128  + network.errors_on_transmitted() as u128
         })

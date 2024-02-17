@@ -82,7 +82,7 @@ use std::sync::{Arc, Mutex};
 fn insert_random_stars(mut word: Vec<u8>) -> Vec<u8> {
     let rng = Arc::new(Mutex::new(Nebula::new(SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos())));
 
-    let num_stars: usize = rng.lock().unwrap().generate_bounded_number((word.len()/2) as u128, (word.len()) as u128).unwrap() as usize;
+    let num_stars: usize = rng.lock().unwrap().generate_bounded_number((word.len()/2) as u128, word.len() as u128).unwrap() as usize;
 
     // In utf-8, the '^' character is 94
     let mut stars: Vec<u8> = vec![94; num_stars];
