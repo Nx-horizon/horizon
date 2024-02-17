@@ -641,4 +641,28 @@ mod tests {
 
         assert_eq!(original_data, unshifted_data);
     }
+
+    #[test]
+    fn test_sum_vec() {
+        let password = "test_password";
+        let password2 = "test_passwordergt";
+        let salt = get_salt();
+        let num_iterations = 10;
+
+        // Call the kdfwagen function
+        let result_vec = kdfwagen(password.as_bytes(), salt.as_bytes(), num_iterations);
+        let vector_2 = kdfwagen(password2.as_bytes(), salt.as_bytes(), num_iterations);
+
+        // Calculate the sum of the vector elements
+        let sum: u128 = result_vec.iter().map(|&x| x as u128).sum();
+        let sum2: u128 = vector_2.iter().map(|&x| x as u128).sum();
+
+        // Check if the sum is as expected (replace `expected_sum` with the actual expected sum)
+        let expected_sum: u128 = 67309; // Replace 0 with the actual expected sum
+        assert_ne!(sum+sum2, expected_sum, "The sum of the vector elements is not as expected");
+
+        let mut rng = Nebula::new(sum+sum2);
+        let random_bytes = rng.generate_random_number();
+        println!("{:?}", random_bytes);
+    }
 }

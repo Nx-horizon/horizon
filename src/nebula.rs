@@ -290,7 +290,7 @@ impl Nebula {
 /// // Generate a random number
 /// let random_number = nebula.generate_random_number();
 /// ```
-    fn generate_random_number(&mut self) -> u128 {
+pub(crate) fn generate_random_number(&mut self) -> u128 {
         let random_bytes = self.generate_random_bytes(8);
 
         let mut random_number: u128 = 0;
