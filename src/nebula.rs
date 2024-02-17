@@ -21,6 +21,26 @@ pub struct Nebula {
 }
 
 impl Nebula {
+/// Creates a new instance of the `Nebula` struct with the specified seed.
+///
+/// This function creates a new instance of the `Nebula` struct with the specified seed and initializes its internal state.
+///
+/// # Arguments
+///
+/// * `seed` - A 128-bit seed value to initialize the pseudo-random number generator.
+///
+/// # Returns
+///
+/// A new instance of the `Nebula` struct with the specified seed and initialized internal state.
+///
+/// # Examples
+///
+/// ```
+/// use your_crate::Nebula;
+///
+/// // Create a new Nebula instance with a seed value of 123456789
+/// let nebula = Nebula::new(123456789);
+/// ```
     pub fn new(seed: u128) -> Self {
         Nebula {
             seed,
@@ -29,6 +49,29 @@ impl Nebula {
             bytes_since_reseed: Mutex::new(0),
         }
     }
+
+    
+/// Adds entropy to the internal pool of the `Nebula` struct.
+///
+/// This method adds entropy to the internal pool of the `Nebula` struct by hashing and incorporating entropy sources.
+///
+/// # Errors
+///
+/// This method returns an error if there's an issue with gathering entropy sources or hashing.
+///
+/// # Examples
+///
+/// ```
+/// use your_crate::{Nebula, SystemTrayError};
+///
+/// # fn main() -> Result<(), SystemTrayError> {
+/// let nebula = Nebula::new(123456789);
+///
+/// // Add entropy to the Nebula instance's pool
+/// nebula.add_entropy()?;
+/// # Ok(())
+/// # }
+/// ```
     pub fn add_entropy(&self) -> Result<(), SystemTrayError> {
 
 
@@ -50,7 +93,26 @@ impl Nebula {
         Ok(())
     }
 
-    // Fonction pour mélanger un tableau
+    
+/// Shuffles elements of an array using a cryptographic pseudorandom number generator.
+///
+/// This method shuffles elements of a generic array using the cryptographic pseudorandom number generator of the `Nebula` struct.
+///
+/// # Arguments
+///
+/// * `array` - A mutable reference to a generic array whose elements need to be shuffled.
+///
+/// # Example
+///
+/// ```
+/// use your_crate::Nebula;
+///
+/// let mut array = [1, 2, 3, 4, 5];
+/// let nebula = Nebula::new(123456789);
+///
+/// // Shuffle the elements of the array using the Nebula instance
+/// nebula.shuffle_array(&mut array);
+/// ```
     fn shuffle_array<T>(&self, array: &mut [T]) {
         let mut rng = Nebula::new(secured_seed());
         rng.combine_entropy();
@@ -68,7 +130,25 @@ impl Nebula {
         }
     }
 
-
+/// Reseeds the internal state of the `Nebula` struct.
+///
+/// This method reseeds the internal state of the `Nebula` struct with a new seed and additional entropy.
+/// It performs reseeding based on adaptive conditions and periodically based on time.
+///
+/// # Arguments
+///
+/// * `new_seed` - A new seed value to reseed the `Nebula` instance.
+///
+/// # Example
+///
+/// ```
+/// use your_crate::Nebula;
+///
+/// let mut nebula = Nebula::new(123456789);
+///
+/// // Reseed the Nebula instance with a new seed value
+/// nebula.reseed(987654321);
+/// ```
     fn reseed(&mut self, new_seed: u128) {
         {
             let mut bytes_since_reseed = self.bytes_since_reseed.lock().unwrap();
@@ -77,18 +157,14 @@ impl Nebula {
                 return;
             }
 
-            // Reset the byte counter early to allow reseeding based on adaptive conditions
             *bytes_since_reseed = 0;
-        } // <- bytes_since_reseed goes out of scope here
+        }
 
-        // Add entropy and combine it with the existing state
         let _ = self.add_entropy();
         let combined_entropy = self.combine_entropy();
 
-        // Continue with the mutable borrow after bytes_since_reseed is dropped
         self.mix_entropy(combined_entropy);
 
-        // Update the seed periodically based on time
         let current_time = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos();
         if current_time - self.last_reseed_time > MAX_RESEED_INTERVAL {
             self.last_reseed_time = current_time;
@@ -96,6 +172,24 @@ impl Nebula {
         }
     }
 
+/// Combines entropy in the `Nebula` struct to produce a new seed value.
+///
+/// This method combines the entropy present in the internal pool of the `Nebula` struct with other factors, such as the current seed and last reseed time, to produce a new seed value.
+///
+/// # Returns
+///
+/// A new seed value resulting from the combination of entropy present in the internal pool, the current seed, and the last reseed time.
+///
+/// # Example
+///
+/// ```
+/// use your_crate::Nebula;
+///
+/// let nebula = Nebula::new(123456789);
+///
+/// // Combine entropy and obtain a new seed value
+/// let new_seed = nebula.combine_entropy();
+/// ```
     fn combine_entropy(&self) -> u128 {
         let mut combined_entropy = self.seed;
 
@@ -107,7 +201,25 @@ impl Nebula {
         combined_entropy
     }
 
-
+/// Mixes entropy in the `Nebula` struct to enhance randomness.
+///
+/// This method mixes the given entropy value with the existing internal pool of the `Nebula` struct to enhance randomness.
+///
+/// # Arguments
+///
+/// * `entropy` - A 128-bit entropy value to be mixed with the internal pool.
+///
+/// # Example
+///
+/// ```
+/// use your_crate::Nebula;
+///
+/// let mut nebula = Nebula::new(123456789);
+///
+/// // Mix the given entropy with the internal pool
+/// let entropy = 987654321;
+/// nebula.mix_entropy(entropy);
+/// ```
     fn mix_entropy(&mut self, entropy: u128) {
         let entropy_bytes = entropy.to_be_bytes();
 
@@ -120,6 +232,28 @@ impl Nebula {
         self.pool = Mutex::new(VecDeque::from(hash.to_vec()));
     }
 
+/// Generates a sequence of random bytes using the `Nebula` struct's internal state.
+///
+/// This method generates a sequence of random bytes using the `Nebula` struct's internal state.
+///
+/// # Arguments
+///
+/// * `count` - The number of random bytes to generate.
+///
+/// # Returns
+///
+/// A vector containing the generated random bytes.
+///
+/// # Example
+///
+/// ```
+/// use your_crate::Nebula;
+///
+/// let mut nebula = Nebula::new(123456789);
+///
+/// // Generate 10 random bytes
+/// let random_bytes = nebula.generate_random_bytes(10);
+/// ```
     fn generate_random_bytes(&mut self, count: usize) -> Vec<u8> {
         let mut random_bytes = Vec::with_capacity(count);
 
@@ -138,6 +272,24 @@ impl Nebula {
         random_bytes
     }
 
+/// Generates a 128-bit random number using the `Nebula` struct's internal state.
+///
+/// This method generates a 128-bit random number using the `Nebula` struct's internal state.
+///
+/// # Returns
+///
+/// A 128-bit random number.
+///
+/// # Example
+///
+/// ```
+/// use your_crate::Nebula;
+///
+/// let mut nebula = Nebula::new(123456789);
+///
+/// // Generate a random number
+/// let random_number = nebula.generate_random_number();
+/// ```
     fn generate_random_number(&mut self) -> u128 {
         let random_bytes = self.generate_random_bytes(8);
 
@@ -150,7 +302,40 @@ impl Nebula {
         random_number
     }
 
-
+/// Generates a bounded random number using the `Nebula` struct's internal state.
+///
+/// This method generates a random number within a specified range using the `Nebula` struct's internal state.
+///
+/// # Arguments
+///
+/// * `min` - The minimum value (inclusive) of the range.
+/// * `max` - The maximum value (inclusive) of the range.
+///
+/// # Returns
+///
+/// A random number within the specified range.
+///
+/// # Errors
+///
+/// An error is returned if `min` is greater than `max`.
+///
+/// # Example
+///
+/// ```
+/// use your_crate::{Nebula, SystemTrayError};
+///
+/// let mut nebula = Nebula::new(123456789);
+///
+/// // Generate a random number within the range [10, 20]
+/// match nebula.generate_bounded_number(10, 20) {
+///     Ok(random_number) => {
+///         println!("Random number within the range: {}", random_number);
+///     },
+///     Err(err) => {
+///         eprintln!("Error: {}", err);
+///     },
+/// }
+/// ```
     pub fn generate_bounded_number(&mut self, min: u128, max: u128) -> Result<u128, SystemTrayError> {
         if min > max {
             return Err(SystemTrayError::new(9));
@@ -161,8 +346,45 @@ impl Nebula {
     }
 }
 
+/// Gathers system data for entropy generation.
+///
+/// This function gathers various system-related data to be used for entropy generation in cryptographic operations.
+///
+/// # Returns
+///
+/// An array containing system-related data for entropy generation. The array has a fixed length of 10 and includes the following elements:
+/// - Current system time in nanoseconds since the UNIX epoch.
+/// - Process ID of the current process.
+/// - Total system memory.
+/// - Used system memory.
+/// - Total swap space.
+/// - Number of CPUs.
+/// - Total disk read bytes of all processes.
+/// - System uptime in seconds.
+/// - System boot time in seconds since the UNIX epoch.
+/// - Total network data transfer across all network interfaces.
+///
+/// # Errors
+///
+/// An error is returned if the total disk usage by all processes is zero, indicating a failure to retrieve disk usage data.
+///
+/// # Example
+///
+/// ```
+/// use your_crate::{data_computer, SystemTrayError};
+///
+/// // Gather system-related data for entropy generation
+/// match data_computer() {
+///     Ok(system_data) => {
+///         println!("System data: {:?}", system_data);
+///     },
+///     Err(err) => {
+///         eprintln!("Error: {}", err);
+///     },
+/// }
+/// ```
 fn data_computer() -> Result<[u128; 10], SystemTrayError> {
-    let sys = System::new_all();  // Create a new sysinfo System to get system information
+    let sys = System::new_all();
 
     let total_memory = sys.total_memory();
     let used_memory = sys.used_memory();
@@ -180,7 +402,7 @@ fn data_computer() -> Result<[u128; 10], SystemTrayError> {
 
     let pid_set: HashSet<&Pid> = sys.processes().keys().collect();
 
-    let pid_disk_usage: u128 = pid_set.into_par_iter() // use into_par_iter() for parallel iteration
+    let pid_disk_usage: u128 = pid_set.into_par_iter()
         .map(|&pid| {
             if let Some(process) = sys.process(pid) {
                 process.disk_usage().total_read_bytes as u128
@@ -204,7 +426,26 @@ fn data_computer() -> Result<[u128; 10], SystemTrayError> {
     Ok([time, pid.into(), total_memory as u128, used_memory as u128, total_swap as u128, nb_cpus.try_into().unwrap(), pid_disk_usage, uptime, boot_time, network_data])
 }
 
-// Fonction secured_seed
+/// Generates a secured seed for cryptographic operations.
+///
+/// This function generates a secured seed by combining system-related data and current system time.
+///
+/// # Returns
+///
+/// A secured seed for cryptographic operations.
+///
+/// # Panics
+///
+/// Panics if the current system time goes backwards.
+///
+/// # Example
+///
+/// ```
+/// use your_crate::secured_seed;
+///
+/// // Generate a secured seed for cryptographic operations
+/// let seed = secured_seed();
+/// ```
 fn secured_seed() -> u128 {
     let temps_actuel = SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -216,7 +457,7 @@ fn secured_seed() -> u128 {
     let contexte = data_computer().unwrap();
 
     let context_bytes: Vec<u8> = contexte
-        .par_iter() // use par_iter() for parallel iteration
+        .par_iter()
         .flat_map(|&x| x.to_be_bytes().to_vec())
         .collect();
 
@@ -229,6 +470,28 @@ fn secured_seed() -> u128 {
 
     somme1 * somme2
 }
+
+/// Shuffles the elements of a slice.
+///
+/// This function shuffles the elements of a slice using a secured seed for randomness.
+///
+/// # Arguments
+///
+/// * `items` - A mutable reference to a slice of elements that need to be shuffled.
+///
+/// # Example
+///
+/// ```
+/// use your_crate::shuffle;
+///
+/// // Create a vector of integers
+/// let mut numbers = vec![1, 2, 3, 4, 5];
+///
+/// // Shuffle the vector
+/// shuffle(&mut numbers);
+///
+/// // Now `numbers` contains shuffled elements
+/// ```
 pub fn shuffle<T>(items: &mut [T]) {
     let len = items.len();
     for i in (1..len).rev() {
@@ -237,6 +500,28 @@ pub fn shuffle<T>(items: &mut [T]) {
     }
 }
 
+/// Shuffles the elements of a slice with a specified seed.
+///
+/// This function shuffles the elements of a slice using a specified seed for randomness.
+///
+/// # Arguments
+///
+/// * `items` - A mutable reference to a slice of elements that need to be shuffled.
+/// * `seed` - The seed used for shuffling. It determines the randomness of the shuffle.
+///
+/// # Example
+///
+/// ```
+/// use your_crate::seeded_shuffle;
+///
+/// // Create a vector of integers
+/// let mut numbers = vec![1, 2, 3, 4, 5];
+///
+/// // Shuffle the vector with a specified seed
+/// seeded_shuffle(&mut numbers, 123);
+///
+/// // Now `numbers` contains shuffled elements based on the seed
+/// ```
 pub fn seeded_shuffle<T>(items: &mut [T], seed: usize) {
     let len = items.len();
     for i in (1..len).rev() {
