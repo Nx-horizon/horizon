@@ -270,15 +270,16 @@ fn main() {
 #[cfg(test)]
 mod tests {
     use std::fs::File;
-    use std::io::Read;
+    use std::io::{Read, Write};
+    use crate::cryptex::{decrypt_file, encrypt_file};
     use super::*;
 
     #[test]
     fn test_crypt_file(){ //still not functionning
-        let _key1 = generate_key();
+        let key1 = generate_key();
         let password = "bonjourcestmoi";
-        let _key2 = generate_key2(password);
-        let _key3 = generate_key2(password);
+        let key2 = generate_key2(password);
+        let key3 = generate_key2(password);
 
 
         // Read the content of the file
@@ -287,34 +288,18 @@ mod tests {
         file.read_to_end(&mut file_content).expect("TODO: panic message");
 
         // Encrypt the content
-        //let encrypted_content = encrypt3(file_content.clone(), &key1, &key2.unwrap(), password);
-        let a = vz_maker(123456789, 368291, 567675);
-        let mut encrypted_content = shift_bits(file_content.clone(), &a);
-        // Write the encrypted content to the output file
-        //let mut output_file = File::create("invoicesample2.pdf").unwrap();
-        xor_crypt3(&mut encrypted_content, &a);
-        //output_file.write_all(&encrypted_content.clone()).expect("TODO: panic message");
-
+        let encrypted_content = encrypt_file(file_content.clone(), &key1, &key2.unwrap(), password);
 
         //reverse process
 
-        // Read the content of the file
-        //let mut file_content2 = Vec::new();
-        //let mut file = File::open("invoicesample2.pdf").unwrap();
-        //file.read_to_end(&mut file_content2).expect("TODO: panic message");
-
         // dcrypt the content
-        //let dcrypted_content = decrypt3(ac, &key1, &key3.unwrap(), password);
-        xor_crypt3(&mut encrypted_content, &a);
-        let dcrypted_content = unshift_bits(encrypted_content, &a);
-
-        let copi = dcrypted_content;
-
-        assert_eq!(copi, file_content);
+        let dcrypted_content = decrypt_file(encrypted_content.unwrap(), &key1, &key3.unwrap(), password);
+        let a = dcrypted_content.unwrap();
+        assert_eq!(a.clone(), file_content);
 
         // Write the encrypted content to the output file
-        //let mut output_file = File::create("invoicesample3.pdf").unwrap();
-        //output_file.write_all(&copi).expect("TODO: panic message");
+        let mut output_file = File::create("invoicesample3.pdf").unwrap();
+        output_file.write_all(&a.clone()).expect("TODO: panic message");
     }
 
 
