@@ -418,8 +418,8 @@ fn xor_crypt3(input: &mut [u8], key: &[u8]) {
 pub fn shift_bits(cipher_text: Vec<u8>, key: &[u8]) -> Vec<u8> {
     cipher_text.par_iter().enumerate().map(|(i, &byte)| {
         let shift_amount = key[i % key.len()];
-        let rotated_byte = byte.rotate_left(shift_amount as u32);
-        rotated_byte
+        
+        byte.rotate_left(shift_amount as u32)
     }).collect::<Vec<u8>>()
 }
 
@@ -447,8 +447,8 @@ pub fn shift_bits(cipher_text: Vec<u8>, key: &[u8]) -> Vec<u8> {
 pub fn unshift_bits(cipher_text: Vec<u8>, key: &[u8]) -> Vec<u8> {
     cipher_text.par_iter().enumerate().map(|(i, &byte)| {
         let shift_amount = key[i % key.len()];
-        let rotated_byte = byte.rotate_right(shift_amount as u32);
-        rotated_byte
+        
+        byte.rotate_right(shift_amount as u32)
     }).collect::<Vec<u8>>() // Collect into a Vec<u8>
 }
 
@@ -613,7 +613,7 @@ mod tests {
     #[test]
     fn test_generate_key2() {
         let seed = "0123456789";
-        let key = generate_key2(&seed).unwrap();
+        let key = generate_key2(seed).unwrap();
 
         println!("Key size : {}", key.len());
         println!("Key: {:?}", key);

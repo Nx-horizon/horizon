@@ -607,7 +607,7 @@ mod tests {
             let count = distribution_counts.entry(number).or_insert(0);
             *count += 1;
 
-            assert!(number >= 10 && number <= 20, "Le nombre généré est hors de la plage spécifiée");
+            assert!((10..=20).contains(&number), "Le nombre généré est hors de la plage spécifiée");
         }
 
         // Afficher la répartition des valeurs
@@ -649,7 +649,7 @@ mod tests {
             let count = distribution_counts.entry(number).or_insert(0);
             *count += 1;
 
-            assert!(number >= 10 && number <= 20, "Generated number is outside the specified range");
+            assert!((10..=20).contains(&number), "Generated number is outside the specified range");
         }
 
         // Check if the distribution is uniform

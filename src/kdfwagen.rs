@@ -114,7 +114,7 @@ pub(crate) fn kdfwagen(password: &[u8], salt: &[u8], iterations: usize) -> Vec<u
 #[cfg(test)]
 mod tests {
     use super::*;
-    use hex;
+    
 
     #[test]
     fn test_hmac() {

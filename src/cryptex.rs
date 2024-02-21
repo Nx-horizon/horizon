@@ -4,6 +4,7 @@
 
 use std::collections::HashMap;
 use std::error::Error;
+use blake3::Hasher;
 use rayon::prelude::*;
 use crate::{addition_chiffres, get_salt, KEY_LENGTH, nebula, NUM_ITERATIONS, shift_bits, table3, unshift_bits, vz_maker, xor_crypt3};
 use crate::kdfwagen::kdfwagen;
@@ -87,15 +88,53 @@ pub(crate) fn decrypt_file(cipher_text: Vec<u8>, key1: &Vec<u8>, key2: &Vec<u8>,
         let row = key2_chars[i % key2_len] % table_len;
 
         if table_2d < table_len && row < table[table_2d].len() {
-            if let Some(col) = table[table_2d][row].iter().position(|x| x == c) {
-                Some(characters[col])
-            } else {
-                None
-            }
+            table[table_2d][row].iter().position(|x| x == c).map(|col| characters[col])
         } else {
             None
         }
     }).collect();
 
     Ok(plain_text)
+}
+
+pub fn cipher_key_transmiter(key1: &[u8], seed: Vec<u8>) -> HashMap<Vec<u8>, [u8; 64]> {
+    let mut key_storage = HashMap::new();
+
+    let v1 = kdfwagen(key1, get_salt().as_bytes(), 5);
+
+    let mut seed2 = seed.clone();
+
+    xor_crypt3(&mut seed2, &v1);
+    let retour = shift_bits(seed2, &kdfwagen(&v1, get_salt().as_bytes(), 5));
+
+    let mut inner_hasher = Hasher::new();
+    inner_hasher.update(&seed);
+    let mut inner_hash = [0; 64];
+    inner_hasher.finalize_xof().fill(&mut inner_hash);
+
+    key_storage.insert(retour, inner_hash);
+
+    key_storage
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*; // Import the function and necessary modules
+
+    #[test]
+    fn test_cipher_key_transmitter() {
+        // Define input values for testing
+        let key1 = vec![1, 2, 3, 4, 5];
+        let seed = "pommedeterre".as_bytes().to_vec();
+
+
+        let key_storage = cipher_key_transmiter(&key1, seed);
+        println!("{:?}",key_storage);
+
+        for (key,_value) in key_storage{
+            println!("{}", String::from_utf8_lossy(&key));
+        }
+
+        //assert_eq!(key_storage.len(), 1);
+    }
 }
