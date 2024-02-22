@@ -39,6 +39,7 @@ impl SystemTrayError {
             7 => "Error when dividing by 8".to_string(),
             8 => "Error no process found".to_string(),
             9 => "min is superior to max".to_string(),
+            10 => "Salt is too short".to_string(),
             _ => format!("Unknown error with code {}", code),
         };
 
