@@ -79,7 +79,7 @@ fn table3(size: usize, seed: u64) -> Vec<Vec<Vec<u8>>> {
 /// println!("Generated salt: {}", salt);
 /// ```
 fn get_salt() -> String {
-    System::name().unwrap() + &System::host_name().unwrap() + &System::os_version().unwrap()  + &System::kernel_version().unwrap()
+    System::name().unwrap_or("".to_string()) + &System::host_name().unwrap_or("".to_string()) + &System::os_version().unwrap_or("".to_string())  + &System::kernel_version().unwrap_or("".to_string())
 }
 
 
