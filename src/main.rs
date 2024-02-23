@@ -2,6 +2,7 @@ mod systemtrayerror;
 mod kdfwagen;
 mod cryptex;
 mod nebula;
+mod key_transmiter;
 
 use std::collections::HashMap;
 use std::error::Error;
