@@ -7,7 +7,6 @@ use rayon::iter::ParallelIterator;
 use secrecy::ExposeSecret;
 
 use sysinfo::{Networks, Pid, System};
-use zeroize::Zeroize;
 use crate::kdfwagen::kdfwagen;
 use crate::systemtrayerror::SystemTrayError;
 
