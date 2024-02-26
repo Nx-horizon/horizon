@@ -2,6 +2,7 @@ mod systemtrayerror;
 mod kdfwagen;
 mod cryptex;
 mod nebula;
+mod key_transmiter;
 
 use std::collections::HashMap;
 use std::error::Error;
@@ -151,7 +152,14 @@ fn generate_key2(seed: &str) -> Result<Secret<Vec<u8>>, SystemTrayError> {
         return Err(SystemTrayError::new(4));
     }
 
-    let seed = kdfwagen::kdfwagen(seed.as_bytes(), get_salt().as_bytes(), NUM_ITERATIONS);
+    let salt = get_salt();
+    println!("salt: {}", salt);
+    if salt.len() < 10 {
+        return Err(SystemTrayError::new(10));
+    }
+
+
+    let seed = kdfwagen::kdfwagen(seed.as_bytes(), salt.as_bytes(), NUM_ITERATIONS);
 
     Ok(seed)
 }

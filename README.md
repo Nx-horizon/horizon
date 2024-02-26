@@ -92,4 +92,4 @@ Contributions are welcome! Before submitting changes, please refer to [CONTRIBUT
 
 ## License
 
-This project is licensed under the [Apache License](LICENSE).
+This project is licensed under the [AgplV3 License](LICENSE).
