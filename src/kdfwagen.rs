@@ -3,6 +3,7 @@ use rayon::iter::IntoParallelRefMutIterator;
 use rayon::iter::IndexedParallelIterator;
 use rayon::prelude::IntoParallelRefIterator;
 use rayon::iter::ParallelIterator;
+use secrecy::Secret;
 
 /// Computes the Hash-based Message Authentication Code (HMAC) using the SHA3-512 hashing algorithm.
 ///
@@ -82,7 +83,7 @@ fn hmac(key: &[u8], message: &[u8]) -> [u8; 64] {
 /// let derived_key = kdfwagen(&password, &salt, iterations);
 /// println!("{:?}", derived_key);
 /// ```
-pub(crate) fn kdfwagen(password: &[u8], salt: &[u8], iterations: usize) -> Vec<u8> {
+pub(crate) fn kdfwagen(password: &[u8], salt: &[u8], iterations: usize) -> Secret<Vec<u8>> {
     const PRF_OUTPUT_SIZE: usize = 64;
     const KEY_LENGTH: usize = 512;
 
@@ -108,11 +109,12 @@ pub(crate) fn kdfwagen(password: &[u8], salt: &[u8], iterations: usize) -> Vec<u
     }
 
     result.resize(KEY_LENGTH, 0);
-    result
+    Secret::new(result)
 }
 
 #[cfg(test)]
 mod tests {
+    use secrecy::ExposeSecret;
     use super::*;
     
 
@@ -132,6 +134,6 @@ mod tests {
         let iterations = 2;
         let expected = "413bd0ade22416e8e3d020ce630195a1344007b5ae5f7b80f4c8000954df962f0de0e577870cdb0b740cb40bbb3036e98d5a441cc9a23e6792c38d1c62d9e68ce44cb1b069bf2111c6f239260bc8a303ff27feec4712cf2eb6f77bbb2e57cde79367bb9db9b7deeaabef96bb26d7ad5958b4f29b26f7ed2bd80406aef4b0ebed6fee5f2ecf334ee5572028d563a42512bcc21be613aaf873c1b14b566c2747ca6fa9ef5542c2872fca20f71430f5a6db219ee5fb796fc991539763b3c2fe631ae1faa850ca7c184967bb4248fb2d8aaf633bf4b6c6ad76eeeb10ad1e42a104d7c2f07017e9812b01ee9c601cf4c45becac0d62bf33eaaed7ae92b5d93736cb66bfed9dbb2091334a883c6f4c65731bb1187bf186ca67c9e43954c4602d14efd3321c6e8cb4501bb81256def8f63ff5f0ebdbbec62e41be0e849be79f3caeac391f4aec954c9dda8a30a41b56e062a601dc9c3dbf6b0e4958b6a8528f673082fd5072caadf970cfc1cba9aa789b2c5f3e57cc12cd43284275d4e8bccc1a001d8e8f3c052589d2c9441c0df8c9fc4d3ef4a3a9f8cd523d5e1b2c96425bb3b415b5bb22070c9349421c9746f65e31331aab58950b4722c98d422cc88c1ab4601011c1d29db969edca4000e130ea788bef2de34e6856088f6a61df8545f55b174234702b22564710e99dea7cd55d01ce24f10f612424b0ea1bdc77c1cceb6774af4b";
         let result = kdfwagen(password, salt, iterations);
-        assert_eq!(hex::encode(result), expected);
+        assert_eq!(hex::encode(result.expose_secret()), expected);
     }
 }

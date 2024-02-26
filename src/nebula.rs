@@ -4,8 +4,10 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use blake3::Hasher;
 use rayon::prelude::{IntoParallelIterator, IntoParallelRefIterator};
 use rayon::iter::ParallelIterator;
+use secrecy::ExposeSecret;
 
 use sysinfo::{Networks, Pid, System};
+use zeroize::Zeroize;
 use crate::kdfwagen::kdfwagen;
 use crate::systemtrayerror::SystemTrayError;
 
@@ -463,10 +465,10 @@ fn secured_seed() -> u128 {
 
     let cle = kdfwagen(&context_bytes, donnee_entree.as_bytes(), 15);
 
-    let (partie1, partie2) = cle.split_at(16);
+    let (partie1, partie2) = cle.expose_secret().split_at(16);
 
-    let somme1: u128 = partie1.iter().map(|&x| x as u128).sum();
-    let somme2: u128 = partie2.iter().map(|&x| x as u128).sum();
+    let somme1: u128 = partie1.into_iter().map(|&x| x as u128).sum();
+    let somme2: u128 = partie2.into_iter().map(|&x| x as u128).sum();
 
     somme1 * somme2
 }

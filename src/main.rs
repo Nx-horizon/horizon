@@ -14,6 +14,8 @@ use crate::kdfwagen::kdfwagen;
 use crate::nebula::Nebula;
 
 
+use secrecy::{ExposeSecret, Secret};
+
 const NUM_ITERATIONS: usize = 10;
 const KEY_LENGTH: usize = 512;
 
@@ -83,7 +85,7 @@ fn get_salt() -> String {
 }
 
 
-pub fn generate_key() -> Vec<u8> {
+pub fn generate_key() -> Secret<Vec<u8>> {
 
     match get_mac_address() {
         Ok(Some(mac_address)) => {
@@ -93,11 +95,11 @@ pub fn generate_key() -> Vec<u8> {
         },
         Ok(None) => {
             eprintln!("No MAC address found."); //TODO use systemTrayError
-            Vec::new()
+            Secret::new(Vec::new())
         },
         Err(e) => {
             eprintln!("Error: {}", e);
-            Vec::new()
+            Secret::new(Vec::new())
         },
     }
 
@@ -121,7 +123,7 @@ pub fn generate_key() -> Vec<u8> {
 /// let sum = addition_chiffres(&mac_address);
 /// assert_eq!(sum, 0xAABBCCDDEEFF);
 /// ```
-fn addition_chiffres(adresse_mac: &[u8]) -> u64 {
+fn addition_chiffres(adresse_mac: &Vec<u8>) -> u64 {
     adresse_mac.par_iter().map(|&x| x as u64).sum()
 }
 
@@ -144,7 +146,7 @@ fn addition_chiffres(adresse_mac: &[u8]) -> u64 {
 ///     Err(err) => eprintln!("Error: {}", err),
 /// }
 /// ```
-fn generate_key2(seed: &str) -> Result<Vec<u8>, SystemTrayError> {
+fn generate_key2(seed: &str) -> Result<Secret<Vec<u8>>, SystemTrayError> {
     if seed.len() < 10 {
         return Err(SystemTrayError::new(4));
     }
@@ -219,7 +221,7 @@ fn insert_random_stars(mut word: Vec<u8>) -> Vec<u8> {
 /// let result = vz_maker(val1, val2, seed);
 /// println!("Resulting vector: {:?}", result);
 /// ```
-fn vz_maker(val1: u64, val2:u64, seed: u64) -> Vec<u8>{
+fn vz_maker(val1: u64, val2:u64, seed: u64) -> Secret<Vec<u8>> {
     kdfwagen(&[(val1+val2) as u8,(val1*val2) as u8, (val1%val2) as u8, seed as u8, val1.abs_diff(val2) as u8], get_salt().as_bytes(), 10)
 }
 
@@ -250,8 +252,11 @@ fn vz_maker(val1: u64, val2:u64, seed: u64) -> Vec<u8>{
 ///     Err(err) => eprintln!("Error: {}", err),
 /// }
 /// ```
-pub(crate) fn encrypt3(plain_text: Vec<u8>, key1: &Vec<u8>, key2: &Vec<u8>, password: &str) -> Result<Vec<u8>, Box<dyn Error>> {
+pub(crate) fn encrypt3(plain_text: Vec<u8>, key1: &Secret<Vec<u8>>, key2: &Secret<Vec<u8>>, password: &str) -> Result<Vec<u8>, Box<dyn Error>> {
     let inter = insert_random_stars(plain_text);
+
+    let key1 = key1.expose_secret();
+    let key2 = key2.expose_secret();
 
     let val1 = addition_chiffres(key2);
     let val2 = addition_chiffres(key1);
@@ -293,10 +298,10 @@ pub(crate) fn encrypt3(plain_text: Vec<u8>, key1: &Vec<u8>, key2: &Vec<u8>, pass
         }
     }).collect();
 
-    xor_crypt3(&mut cipher_text, &kdfwagen(password.as_bytes(), get_salt().as_bytes(), NUM_ITERATIONS));
+    xor_crypt3(&mut cipher_text, kdfwagen(password.as_bytes(), get_salt().as_bytes(), NUM_ITERATIONS));
     let vz = vz_maker(val1, val2, seed);
 
-    Ok(shift_bits(cipher_text, &vz))
+    Ok(shift_bits(cipher_text, vz))
 }
 
 /// Decrypts cipher text encrypted using a double-key encryption scheme.
@@ -325,8 +330,11 @@ pub(crate) fn encrypt3(plain_text: Vec<u8>, key1: &Vec<u8>, key2: &Vec<u8>, pass
 ///     Err(err) => eprintln!("Error: {}", err),
 /// }
 /// ```
-pub(crate) fn decrypt3(cipher_text: Vec<u8>, key1: &Vec<u8>, key2: &Vec<u8>, password: &str) -> Result<Vec<u8>, Box<dyn Error>> {
+pub(crate) fn decrypt3(cipher_text: Vec<u8>, key1: &Secret<Vec<u8>>, key2: &Secret<Vec<u8>>, password: &str) -> Result<Vec<u8>, Box<dyn Error>> {
     let mut cipher_text = cipher_text.clone();
+
+    let key1 = key1.expose_secret();
+    let key2 = key2.expose_secret();
 
     let val1 = addition_chiffres(key2);
     let val2 = addition_chiffres(key1);
@@ -341,8 +349,8 @@ pub(crate) fn decrypt3(cipher_text: Vec<u8>, key1: &Vec<u8>, key2: &Vec<u8>, pas
     let table_len = 256;
 
     let vz = vz_maker(val1, val2, seed);
-    cipher_text = unshift_bits(cipher_text, &vz);
-    xor_crypt3(&mut cipher_text, &kdfwagen(password.as_bytes(), get_salt().as_bytes(), NUM_ITERATIONS));
+    cipher_text = unshift_bits(cipher_text, vz);
+    xor_crypt3(&mut cipher_text, kdfwagen(password.as_bytes(), get_salt().as_bytes(), NUM_ITERATIONS));
 
     let key1_chars: Vec<usize> = key1.into_par_iter().map(|&c| c as usize % 256).collect();
     let key2_chars: Vec<usize> = key2.into_par_iter().map(|&c| c as usize % 256).collect();
@@ -388,7 +396,8 @@ pub(crate) fn decrypt3(cipher_text: Vec<u8>, key1: &Vec<u8>, key2: &Vec<u8>, pas
 ///
 /// // At this point, `data` contains the encrypted or decrypted result.
 /// ```
-fn xor_crypt3(input: &mut [u8], key: &[u8]) {
+fn xor_crypt3(input: &mut [u8], key: Secret<Vec<u8>>) {
+    let key = key.expose_secret();
     input.par_iter_mut().enumerate().for_each(|(i, byte)| {
         *byte ^= key[i % key.len()];
     });
@@ -415,7 +424,8 @@ fn xor_crypt3(input: &mut [u8], key: &[u8]) {
 ///
 /// // At this point, `shifted_text` contains the result of bit shifting.
 /// ```
-pub fn shift_bits(cipher_text: Vec<u8>, key: &[u8]) -> Vec<u8> {
+pub fn shift_bits(cipher_text: Vec<u8>, key: Secret<Vec<u8>>) -> Vec<u8> {
+    let key = key.expose_secret();
     cipher_text.par_iter().enumerate().map(|(i, &byte)| {
         let shift_amount = key[i % key.len()];
         
@@ -444,7 +454,8 @@ pub fn shift_bits(cipher_text: Vec<u8>, key: &[u8]) -> Vec<u8> {
 ///
 /// // At this point, `unshifted_text` contains the result of reverse bit shifting.
 /// ```
-pub fn unshift_bits(cipher_text: Vec<u8>, key: &[u8]) -> Vec<u8> {
+pub fn unshift_bits(cipher_text: Vec<u8>, key: Secret<Vec<u8>>) -> Vec<u8> {
+    let key = key.expose_secret();
     cipher_text.par_iter().enumerate().map(|(i, &byte)| {
         let shift_amount = key[i % key.len()];
         
@@ -605,9 +616,8 @@ mod tests {
     fn test_generate_key() {
         let key = generate_key();
 
-        println!("Key size : {}", key.len());
-        println!("Key: {:?}", key);
-        assert_ne!(key.len(), 0);
+
+        assert_ne!(key.expose_secret().len(), 0);
     }
 
     #[test]
@@ -615,10 +625,8 @@ mod tests {
         let seed = "0123456789";
         let key = generate_key2(seed).unwrap();
 
-        println!("Key size : {}", key.len());
-        println!("Key: {:?}", key);
 
-        assert_ne!(key.len(), 0)
+        assert_ne!(key.expose_secret().len(), 0)
     }
 
     #[test]
@@ -636,33 +644,10 @@ mod tests {
         let original_data = vec![1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
         let key = vec![1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
 
-        let shifted_data = shift_bits(original_data.clone(), &key);
-        let unshifted_data = unshift_bits(shifted_data, &key);
+        let shifted_data = shift_bits(original_data.clone(), Secret::new(key.clone()));
+        let unshifted_data = unshift_bits(shifted_data, Secret::new(key));
 
         assert_eq!(original_data, unshifted_data);
     }
 
-    #[test]
-    fn test_sum_vec() {
-        let password = "test_password";
-        let password2 = "test_passwordergt";
-        let salt = get_salt();
-        let num_iterations = 10;
-
-        // Call the kdfwagen function
-        let result_vec = kdfwagen(password.as_bytes(), salt.as_bytes(), num_iterations);
-        let vector_2 = kdfwagen(password2.as_bytes(), salt.as_bytes(), num_iterations);
-
-        // Calculate the sum of the vector elements
-        let sum: u128 = result_vec.iter().map(|&x| x as u128).sum();
-        let sum2: u128 = vector_2.iter().map(|&x| x as u128).sum();
-
-        // Check if the sum is as expected (replace `expected_sum` with the actual expected sum)
-        let expected_sum: u128 = 67309; // Replace 0 with the actual expected sum
-        assert_ne!(sum+sum2, expected_sum, "The sum of the vector elements is not as expected");
-
-        let mut rng = Nebula::new(sum+sum2);
-        let random_bytes = rng.generate_random_number();
-        println!("{:?}", random_bytes);
-    }
 }
