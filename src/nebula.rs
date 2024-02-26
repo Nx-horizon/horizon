@@ -466,8 +466,8 @@ fn secured_seed() -> u128 {
 
     let (partie1, partie2) = cle.expose_secret().split_at(16);
 
-    let somme1: u128 = partie1.into_iter().map(|&x| x as u128).sum();
-    let somme2: u128 = partie2.into_iter().map(|&x| x as u128).sum();
+    let somme1: u128 = partie1.iter().map(|&x| x as u128).sum();
+    let somme2: u128 = partie2.iter().map(|&x| x as u128).sum();
 
     somme1 * somme2
 }
