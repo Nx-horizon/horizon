@@ -684,7 +684,7 @@ mod tests {
     fn monte_carlo_test() {
         const SAMPLE_SIZE: usize = 10000;
 
-        let mut nebula = Nebula::new(secured_seed());
+        let mut nebula = Nebula::new(SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos());
         let mut ones_count:i64 = 0;
         let mut zeros_count:i64 = 0;
 

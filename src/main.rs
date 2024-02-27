@@ -94,7 +94,7 @@ pub fn generate_key() -> Secret<Vec<u8>> {
             returner
         },
         Ok(None) => {
-            eprintln!("No MAC address found."); //TODO use systemTrayError
+            eprintln!("No MAC address found.");
             Secret::new(Vec::new())
         },
         Err(e) => {
@@ -512,8 +512,9 @@ pub fn unshift_bits(cipher_text: Vec<u8>, key: Secret<Vec<u8>>) -> Vec<u8> {
 /// }
 /// ```
 fn main() {
-    let plain_text = "hello world i'm the best at making strong encryption system";
+    let plain_text = "hello world i'm the best at making strong encryption system éà";
     let pass = "LeMOTdePAsse34!";
+
 
     let key1 = match generate_key2(pass) {
         Ok(key) => key,
