@@ -448,12 +448,12 @@ fn data_computer() -> Result<[u128; 10], SystemTrayError> {
 /// let seed = secured_seed();
 /// ```
 fn secured_seed() -> u128 {
-    let temps_actuel = SystemTime::now()
+    let actual_time = SystemTime::now()
         .duration_since(UNIX_EPOCH)
-        .expect("Le temps est revenu en arrière")
+        .expect("Time went backwards")
         .as_nanos();
 
-    let donnee_entree = format!("{}", temps_actuel);
+    let data_string = format!("{}", actual_time);
 
     let contexte = data_computer().unwrap();
 
@@ -462,14 +462,14 @@ fn secured_seed() -> u128 {
         .flat_map(|&x| x.to_be_bytes().to_vec())
         .collect();
 
-    let cle = kdfwagen(&context_bytes, donnee_entree.as_bytes(), 15);
+    let key = kdfwagen(&context_bytes, data_string.as_bytes(), 15);
 
-    let (partie1, partie2) = cle.expose_secret().split_at(16);
+    let (part1, part2) = key.expose_secret().split_at(16);
 
-    let somme1: u128 = partie1.iter().map(|&x| x as u128).sum();
-    let somme2: u128 = partie2.iter().map(|&x| x as u128).sum();
+    let sum1: u128 = part1.iter().map(|&x| x as u128).sum();
+    let sum2: u128 = part2.iter().map(|&x| x as u128).sum();
 
-    somme1 * somme2
+    sum1 * sum2
 }
 
 /// Shuffles the elements of a slice.
@@ -633,7 +633,7 @@ mod tests {
         let mut items = "1234567890".chars().collect::<Vec<_>>();
         let original = items.clone();
         seeded_shuffle(&mut items, 12345);
-        assert_ne!(items, original, "Les éléments n'ont pas été mélangés");
+        assert_ne!(items, original, "The string was not shuffled");
         let shuffled = items.clone().into_iter().collect::<String>();
         println!("shuffled: {}", shuffled);
     }
@@ -664,7 +664,7 @@ mod tests {
     fn test_monobit() {
         let mut rng = Nebula::new(12345);
         let sequence = rng.generate_random_bytes(1000000);
-        assert!(monobit_test(&sequence), "La séquence générée n'a pas passé le test de monobit");
+        assert!(monobit_test(&sequence), "monobit test has not been passed");
     }
 
     #[test]

@@ -512,7 +512,7 @@ pub fn unshift_bits(cipher_text: Vec<u8>, key: Secret<Vec<u8>>) -> Vec<u8> {
 /// }
 /// ```
 fn main() {
-    let plain_text = "cest moi le le grand test du matin et je à suis content éèù:;?";
+    let plain_text = "hello world i'm the best at making strong encryption system";
     let pass = "LeMOTdePAsse34!";
 
     let key1 = match generate_key2(pass) {
@@ -527,7 +527,7 @@ fn main() {
     match encrypt3(plain_text.as_bytes().to_vec(), &key1, &key1, pass) {
         Ok(encrypted) => {
             println!("Encrypted: {:?}", encrypted);
-
+            println!("convert u8: {:?}", String::from_utf8_lossy(&encrypted.clone()));
 
             match decrypt3(encrypted, &key1, &key1, pass) {
                 Ok(decrypted) => {
