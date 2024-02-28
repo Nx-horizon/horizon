@@ -6,10 +6,9 @@ mod nebula;
 use std::collections::HashMap;
 use std::error::Error;
 use std::time::{SystemTime, UNIX_EPOCH};
-use mac_address::get_mac_address;
 use rayon::prelude::*;
 use crate::systemtrayerror::SystemTrayError;
-use sysinfo::System;
+use sysinfo::{Networks, System};
 use crate::kdfwagen::kdfwagen;
 use crate::nebula::Nebula;
 
@@ -87,22 +86,15 @@ fn get_salt() -> String {
 
 pub fn generate_key() -> Secret<Vec<u8>> {
 
-    match get_mac_address() {
-        Ok(Some(mac_address)) => {
-            let mac_address_str = mac_address.to_string();
-            let returner = kdfwagen(mac_address_str.as_bytes(), get_salt().as_bytes(), NUM_ITERATIONS);
-            returner
-        },
-        Ok(None) => {
-            eprintln!("No MAC address found.");
-            Secret::new(Vec::new())
-        },
-        Err(e) => {
-            eprintln!("Error: {}", e);
-            Secret::new(Vec::new())
-        },
+    let networks = Networks::new_with_refreshed_list();
+    let mut strs = vec![];
+    for (_interface_name, network) in &networks {
+        strs.push(network.mac_address().to_string())
     }
+    let result = strs.join("");
 
+    let returner = kdfwagen(result.as_bytes(), get_salt().as_bytes(), NUM_ITERATIONS);
+    returner
 }
 
 

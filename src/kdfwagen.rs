@@ -24,39 +24,42 @@ use secrecy::Secret;
 /// let hmac_result = hmac(&key, &message);
 /// println!("{:?}", hmac_result);
 /// ```
-fn hmac(key: &[u8], message: &[u8]) -> [u8; 64] {
-    const BLOCK_SIZE: usize = 128;
-
-    let mut adjusted_key = if key.len() > BLOCK_SIZE {
+fn hmac(key: &[u8], message: &[u8], block_size: usize, output_size: usize) -> Vec<u8> {
+    let mut adjusted_key = if key.len() > block_size {
         let mut hasher = Hasher::new();
         hasher.update(key);
-        let mut output = [0; 64];
+        let mut output = vec![0; output_size];
         hasher.finalize_xof().fill(&mut output);
-        output.to_vec()
+        output
     } else {
-        let mut output = [0; 64];
+        let mut output = vec![0; output_size];
         output[..key.len()].copy_from_slice(key);
-        output.to_vec()
+        output
     };
 
-    if adjusted_key.len() < BLOCK_SIZE {
-        adjusted_key.resize(BLOCK_SIZE, 0);
+    if adjusted_key.len() < block_size {
+        adjusted_key.resize(block_size, 0);
     }
 
-    let ipad: Vec<u8> = adjusted_key.iter().map(|&b| b ^ 0x36).collect();
-    let opad: Vec<u8> = adjusted_key.iter().map(|&b| b ^ 0x5C).collect();
+    let mut ipad = adjusted_key.clone();
+    let mut opad = adjusted_key;
+
+    for (i, b) in ipad.iter_mut().enumerate() {
+        *b ^= 0x36;
+        opad[i] ^= 0x5C;
+    }
 
     let inner_input: Vec<u8> = ipad.into_iter().chain(message.iter().cloned()).collect();
 
     let mut inner_hasher = Hasher::new();
     inner_hasher.update(&inner_input);
-    let mut inner_hash = [0; 64];
+    let mut inner_hash = vec![0; output_size];
     inner_hasher.finalize_xof().fill(&mut inner_hash);
 
     let outer_input: Vec<u8> = opad.into_iter().chain(inner_hash.iter().cloned()).collect();
     let mut outer_hasher = Hasher::new();
     outer_hasher.update(&outer_input);
-    let mut outer_hash = [0; 64];
+    let mut outer_hash = vec![0; output_size];
     outer_hasher.finalize_xof().fill(&mut outer_hash);
 
     outer_hash
@@ -86,6 +89,8 @@ fn hmac(key: &[u8], message: &[u8]) -> [u8; 64] {
 pub(crate) fn kdfwagen(password: &[u8], salt: &[u8], iterations: usize) -> Secret<Vec<u8>> {
     const PRF_OUTPUT_SIZE: usize = 64;
     const KEY_LENGTH: usize = 512;
+    const BLOCK_SIZE: usize = 128;
+    const OUTPUT_SIZE: usize = 64;
 
     let mut result = Vec::new();
     let mut block_count = (KEY_LENGTH + PRF_OUTPUT_SIZE - 1) / PRF_OUTPUT_SIZE;
@@ -98,10 +103,10 @@ pub(crate) fn kdfwagen(password: &[u8], salt: &[u8], iterations: usize) -> Secre
         let mut block = salt.to_vec();
         block.extend_from_slice(&block_index.to_be_bytes());
 
-        let mut u = hmac(password, &block);
+        let mut u = hmac(password, &block, BLOCK_SIZE, OUTPUT_SIZE);
 
         for _ in 2..=iterations {
-            let x = hmac(password, &u);
+            let x = hmac(password, &u, BLOCK_SIZE, OUTPUT_SIZE);
             u.par_iter_mut().zip(x.par_iter()).for_each(|(a, b)| *a ^= b);
         }
 
@@ -123,7 +128,7 @@ mod tests {
         let key = b"key";
         let message = b"The quick brown fox jumps over the lazy dog";
         let expected = "7dd9b777e6a6a1ad1b6b7903dfd37f032310f4d10aada0057e84952e6a4bd5c2ceb935ebedaec8bfce881205d4856f9030af7ea005f73cb68a238b38f2e71f28";
-        let result = hmac(key, message);
+        let result = hmac(key, message, 128,64);
         assert_eq!(hex::encode(result), expected);
     }
 
