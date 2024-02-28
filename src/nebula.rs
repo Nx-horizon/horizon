@@ -1,12 +1,13 @@
 use std::collections::{HashSet, VecDeque};
-use std::sync::{Arc, Mutex, RwLock};
+use std::sync::Mutex;
 use std::time::{SystemTime, UNIX_EPOCH};
-use blake3::Hasher;
-use rayon::prelude::{IntoParallelIterator, IntoParallelRefIterator};
-use rayon::iter::ParallelIterator;
-use secrecy::ExposeSecret;
 
+use blake3::Hasher;
+use rayon::iter::ParallelIterator;
+use rayon::prelude::{IntoParallelIterator, IntoParallelRefIterator};
+use secrecy::ExposeSecret;
 use sysinfo::{Networks, Pid, System};
+
 use crate::kdfwagen::kdfwagen;
 use crate::systemtrayerror::SystemTrayError;
 
@@ -115,7 +116,7 @@ impl Nebula {
 /// nebula.shuffle_array(&mut array);
 /// ```
     fn shuffle_array<T>(&self, array: &mut [T]) {
-        let mut rng = Nebula::new(SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos());
+        let mut rng = Nebula::new(secured_seed());
         rng.combine_entropy();
         let len = array.len();
         for i in (1..len).rev() {
@@ -384,24 +385,26 @@ pub(crate) fn generate_random_number(&mut self) -> u128 {
 ///     },
 /// }
 /// ```
-fn data_computer() -> Result<[u128; 9], SystemTrayError> {
+fn data_computer() -> Result<[u128; 10], SystemTrayError> {
     let mut sys = System::new();
     sys.refresh_memory();
+
+    let mut s = System::new();
+    s.refresh_processes();
 
     let total_memory = sys.total_memory();
     let used_memory = sys.used_memory();
     let total_swap = sys.total_swap();
+    let cpu = s.cpus().len() as u128;
     let uptime = System::uptime() as u128;
     let boot_time= System::boot_time() as u128;
 
     let networks = Networks::new_with_refreshed_list();
     let network_data: u128 = calculate_network_data(&networks);
 
-    let pid_set: HashSet<&Pid> = sys.processes().keys().collect();
-
-    let s = Arc::new(RwLock::new(System::new()));
+    let pid_set: HashSet<&Pid> = s.processes().keys().collect();
     let pid_disk_usage: u128 = pid_set.into_par_iter()
-        .map(|pid| calculate_disk_usage(&s, *pid))
+        .map(|&pid| calculate_disk_usage(&s, pid))
         .sum();
 
     let time = SystemTime::now()
@@ -411,7 +414,7 @@ fn data_computer() -> Result<[u128; 9], SystemTrayError> {
 
     let pid = std::process::id();
 
-    Ok([time, pid.into(), total_memory as u128, used_memory as u128, total_swap as u128, pid_disk_usage, uptime, boot_time, network_data])
+    Ok([time, pid.into(), total_memory as u128, used_memory as u128, total_swap as u128, pid_disk_usage, uptime, boot_time, network_data, cpu])
 }
 
 fn calculate_network_data(network: &Networks) -> u128 {
@@ -432,13 +435,11 @@ fn calculate_network_data(network: &Networks) -> u128 {
         .sum()
 }
 
-fn calculate_disk_usage(sys: &Arc<RwLock<System>>, pid: Pid) -> u128 {
-    let mut sys_write = sys.write().unwrap();
-    sys_write.refresh_processes();  // Now refresh processes using write access
-
-    sys_write.process(pid)
+fn calculate_disk_usage(sys: &System, pid: Pid) -> u128 {
+    sys.process(pid)
         .map_or(0, |process| process.disk_usage().total_read_bytes as u128)
 }
+
 /// Generates a secured seed for cryptographic operations.
 ///
 /// This function generates a secured seed by combining system-related data and current system time.
@@ -566,6 +567,7 @@ fn monobit_test(sequence: &[u8]) -> bool {
 #[cfg(test)]
 mod tests {
     use std::collections::HashMap;
+
     use super::*;
 
     #[test]

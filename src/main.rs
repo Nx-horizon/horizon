@@ -5,12 +5,11 @@ mod nebula;
 
 use std::collections::HashMap;
 use std::error::Error;
-use std::time::{SystemTime, UNIX_EPOCH};
 use rayon::prelude::*;
 use crate::systemtrayerror::SystemTrayError;
 use sysinfo::{Networks, System};
 use crate::kdfwagen::kdfwagen;
-use crate::nebula::Nebula;
+use crate::nebula::{Nebula, secured_seed};
 
 
 use secrecy::{ExposeSecret, Secret};
@@ -176,7 +175,7 @@ use std::sync::{Arc, Mutex};
 /// println!("Word with stars: {:?}", word_with_stars);
 /// ```
 fn insert_random_stars(mut word: Vec<u8>) -> Vec<u8> {
-    let rng = Arc::new(Mutex::new(Nebula::new(SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos())));
+    let rng = Arc::new(Mutex::new(Nebula::new(secured_seed())));
 
     let num_stars: usize = rng.lock().unwrap().generate_bounded_number((word.len()/2) as u128, word.len() as u128).unwrap() as usize;
 
@@ -521,11 +520,6 @@ fn main() {
             println!("Encrypted: {:?}", encrypted);
             println!("convert u8: {:?}", hex::encode(&encrypted.clone()));
 
-            if encrypted.clone() == hex::decode(hex::encode(&encrypted.clone())).unwrap(){
-                println!("good to use");
-            } else {
-                println!("not goodo use");
-            }
 
             match decrypt3(encrypted, &key1, &key1, pass) {
                 Ok(decrypted) => {
