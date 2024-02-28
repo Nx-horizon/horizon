@@ -6,7 +6,6 @@ use crate::{addition_chiffres, get_salt, KEY_LENGTH, nebula, NUM_ITERATIONS, shi
 use crate::kdfwagen::kdfwagen;
 
 pub(crate) fn encrypt_file(plain_text: Vec<u8>, key1: &Secret<Vec<u8>>, key2: &Secret<Vec<u8>>, password: &str) -> Result<Vec<u8>, Box<dyn Error>> {
-    let inter = plain_text;
 
     let key1 = key1.expose_secret();
     let key2 = key2.expose_secret();
@@ -30,7 +29,7 @@ pub(crate) fn encrypt_file(plain_text: Vec<u8>, key1: &Secret<Vec<u8>>, key2: &S
     let key1_len = KEY_LENGTH;
     let key2_len = KEY_LENGTH;
 
-    let mut cipher_text: Vec<_> = inter.par_iter().enumerate().filter_map(|(i, c)| {
+    let mut cipher_text: Vec<_> = plain_text.par_iter().enumerate().filter_map(|(i, c)| {
         let table_2d = key1_chars[i % key1_len] % table_len;
         let row = key2_chars[i % key2_len] % table_len;
 
@@ -59,7 +58,7 @@ pub(crate) fn encrypt_file(plain_text: Vec<u8>, key1: &Secret<Vec<u8>>, key2: &S
 
 
 pub(crate) fn decrypt_file(cipher_text: Vec<u8>, key1: &Secret<Vec<u8>>, key2: &Secret<Vec<u8>>, password: &str) -> Result<Vec<u8>, Box<dyn Error>> {
-    let mut cipher_text = cipher_text.clone();
+
 
     let key1 = key1.expose_secret();
     let key2 = key2.expose_secret();
@@ -77,7 +76,7 @@ pub(crate) fn decrypt_file(cipher_text: Vec<u8>, key1: &Secret<Vec<u8>>, key2: &
     let table_len = 256;
 
     let vz = vz_maker(val1, val2, seed);
-    cipher_text = unshift_bits(cipher_text, vz);
+    let mut cipher_text = unshift_bits(cipher_text, vz);
     xor_crypt3(&mut cipher_text, kdfwagen(password.as_bytes(), get_salt().as_bytes(), NUM_ITERATIONS));
 
     let key1_chars: Vec<usize> = key1.into_par_iter().map(|&c| c as usize % 256).collect();

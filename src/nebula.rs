@@ -1,5 +1,5 @@
 use std::collections::{HashSet, VecDeque};
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex, RwLock};
 use std::time::{SystemTime, UNIX_EPOCH};
 use blake3::Hasher;
 use rayon::prelude::{IntoParallelIterator, IntoParallelRefIterator};
@@ -115,7 +115,7 @@ impl Nebula {
 /// nebula.shuffle_array(&mut array);
 /// ```
     fn shuffle_array<T>(&self, array: &mut [T]) {
-        let mut rng = Nebula::new(secured_seed());
+        let mut rng = Nebula::new(SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos());
         rng.combine_entropy();
         let len = array.len();
         for i in (1..len).rev() {
@@ -384,38 +384,25 @@ pub(crate) fn generate_random_number(&mut self) -> u128 {
 ///     },
 /// }
 /// ```
-fn data_computer() -> Result<[u128; 10], SystemTrayError> {
-    let sys = System::new_all();
+fn data_computer() -> Result<[u128; 9], SystemTrayError> {
+    let mut sys = System::new();
+    sys.refresh_memory();
 
     let total_memory = sys.total_memory();
     let used_memory = sys.used_memory();
     let total_swap = sys.total_swap();
-    let nb_cpus = sys.cpus().len();
     let uptime = System::uptime() as u128;
-    let boot_time =  System::uptime() as u128;
+    let boot_time= System::boot_time() as u128;
 
     let networks = Networks::new_with_refreshed_list();
-    let network_data: u128 = networks.par_iter()
-        .map(|(_, network)| {
-            network.received() as u128 + network.total_received() as u128 + network.transmitted() as u128  + network.total_transmitted() as u128  + network.packets_received() as u128  + network.total_packets_received() as u128  + network.packets_transmitted() as u128  + network.total_packets_transmitted() as u128  + network.errors_on_received() as u128  + network.total_errors_on_received() as u128  + network.errors_on_transmitted() as u128
-        })
-        .sum();
+    let network_data: u128 = calculate_network_data(&networks);
 
     let pid_set: HashSet<&Pid> = sys.processes().keys().collect();
 
+    let s = Arc::new(RwLock::new(System::new()));
     let pid_disk_usage: u128 = pid_set.into_par_iter()
-        .map(|&pid| {
-            if let Some(process) = sys.process(pid) {
-                process.disk_usage().total_read_bytes as u128
-            } else {
-                0
-            }
-        })
+        .map(|pid| calculate_disk_usage(&s, *pid))
         .sum();
-
-    if pid_disk_usage == 0 {
-        return Err(SystemTrayError::new(8));
-    }
 
     let time = SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -424,9 +411,34 @@ fn data_computer() -> Result<[u128; 10], SystemTrayError> {
 
     let pid = std::process::id();
 
-    Ok([time, pid.into(), total_memory as u128, used_memory as u128, total_swap as u128, nb_cpus.try_into().unwrap(), pid_disk_usage, uptime, boot_time, network_data])
+    Ok([time, pid.into(), total_memory as u128, used_memory as u128, total_swap as u128, pid_disk_usage, uptime, boot_time, network_data])
 }
 
+fn calculate_network_data(network: &Networks) -> u128 {
+    network.par_iter()
+        .map(|(_, network)| {
+            network.received() as u128
+                + network.total_received() as u128
+                + network.transmitted() as u128
+                + network.total_transmitted() as u128
+                + network.packets_received() as u128
+                + network.total_packets_received() as u128
+                + network.packets_transmitted() as u128
+                + network.total_packets_transmitted() as u128
+                + network.errors_on_received() as u128
+                + network.total_errors_on_received() as u128
+                + network.errors_on_transmitted() as u128
+        })
+        .sum()
+}
+
+fn calculate_disk_usage(sys: &Arc<RwLock<System>>, pid: Pid) -> u128 {
+    let mut sys_write = sys.write().unwrap();
+    sys_write.refresh_processes();  // Now refresh processes using write access
+
+    sys_write.process(pid)
+        .map_or(0, |process| process.disk_usage().total_read_bytes as u128)
+}
 /// Generates a secured seed for cryptographic operations.
 ///
 /// This function generates a secured seed by combining system-related data and current system time.
@@ -447,29 +459,27 @@ fn data_computer() -> Result<[u128; 10], SystemTrayError> {
 /// // Generate a secured seed for cryptographic operations
 /// let seed = secured_seed();
 /// ```
-fn secured_seed() -> u128 {
+pub fn secured_seed() -> u128 {
     let actual_time = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .expect("Time went backwards")
         .as_nanos();
 
-    let data_string = format!("{}", actual_time);
-
-    let contexte = data_computer().unwrap();
-
-    let context_bytes: Vec<u8> = contexte
+    let context_bytes: Vec<u8> = data_computer()
+        .unwrap()
         .par_iter()
-        .flat_map(|&x| x.to_be_bytes().to_vec())
+        .flat_map(|&x| x.to_be_bytes())
         .collect();
 
-    let key = kdfwagen(&context_bytes, data_string.as_bytes(), 15);
+    let key = kdfwagen(&context_bytes, &actual_time.to_be_bytes(), 10);
+    let key = key.expose_secret();
 
-    let (part1, part2) = key.expose_secret().split_at(16);
+    let (part1, part2): (&[u8], &[u8]) = key.split_at(256);
 
-    let sum1: u128 = part1.iter().map(|&x| x as u128).sum();
-    let sum2: u128 = part2.iter().map(|&x| x as u128).sum();
+    let sum1: u128 = part1.par_iter().map(|&x| x as u128).sum();
+    let sum2: u128 = part2.par_iter().map(|&x| x as u128).sum();
 
-    sum1 * sum2
+    sum1.wrapping_mul(sum2)
 }
 
 /// Shuffles the elements of a slice.
@@ -706,5 +716,16 @@ mod tests {
         // Check if the proportions are roughly equal (within some tolerance)
         // Adjust the tolerance based on your requirements
         assert!((ones_proportion - zeros_proportion).abs() < 0.02);
+    }
+
+    #[test]
+    fn test_global(){
+        //println!("{}", SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos());
+        println!("{}",secured_seed());
+    }
+
+    #[test]
+    fn test_speed(){
+        println!("{:?}", data_computer().unwrap());
     }
 }

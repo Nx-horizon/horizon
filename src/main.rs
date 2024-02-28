@@ -330,7 +330,6 @@ pub(crate) fn encrypt3(plain_text: Vec<u8>, key1: &Secret<Vec<u8>>, key2: &Secre
 /// }
 /// ```
 pub(crate) fn decrypt3(cipher_text: Vec<u8>, key1: &Secret<Vec<u8>>, key2: &Secret<Vec<u8>>, password: &str) -> Result<Vec<u8>, Box<dyn Error>> {
-    let mut cipher_text = cipher_text.clone();
 
     let key1 = key1.expose_secret();
     let key2 = key2.expose_secret();
@@ -348,7 +347,7 @@ pub(crate) fn decrypt3(cipher_text: Vec<u8>, key1: &Secret<Vec<u8>>, key2: &Secr
     let table_len = 256;
 
     let vz = vz_maker(val1, val2, seed);
-    cipher_text = unshift_bits(cipher_text, vz);
+    let mut cipher_text = unshift_bits(cipher_text, vz);
     xor_crypt3(&mut cipher_text, kdfwagen(password.as_bytes(), get_salt().as_bytes(), NUM_ITERATIONS));
 
     let key1_chars: Vec<usize> = key1.into_par_iter().map(|&c| c as usize % 256).collect();
@@ -520,7 +519,13 @@ fn main() {
     match encrypt3(plain_text.as_bytes().to_vec(), &key1, &key1, pass) {
         Ok(encrypted) => {
             println!("Encrypted: {:?}", encrypted);
-            println!("convert u8: {:?}", String::from_utf8_lossy(&encrypted.clone()));
+            println!("convert u8: {:?}", hex::encode(&encrypted.clone()));
+
+            if encrypted.clone() == hex::decode(hex::encode(&encrypted.clone())).unwrap(){
+                println!("good to use");
+            } else {
+                println!("not goodo use");
+            }
 
             match decrypt3(encrypted, &key1, &key1, pass) {
                 Ok(decrypted) => {
