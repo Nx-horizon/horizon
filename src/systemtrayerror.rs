@@ -40,6 +40,9 @@ impl SystemTrayError {
             8 => "Error no process found".to_string(),
             9 => "min is superior to max".to_string(),
             10 => "Salt is too short".to_string(),
+            11 => "SystemTime now error".to_string(),
+            12 => "Both [`Mutex`]es and [`RwLock`]s are poisoned".to_string(),
+            13 => "Pop of stars (insert_random_stars function) is empty".to_string(),
             _ => format!("Unknown error with code {}", code),
         };
 

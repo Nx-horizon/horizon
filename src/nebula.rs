@@ -77,12 +77,12 @@ impl Nebula {
     pub fn add_entropy(&self) -> Result<(), SystemTrayError> {
 
 
-        let mut pool = self.pool.lock().unwrap();
+        let mut pool = self.pool.lock().map_err(SystemTrayError::new(12))?;
         if pool.len() >= MAX_POOL_SIZE {
             pool.pop_front();
         }
 
-        let mut entropy_sources = data_computer().unwrap();
+        let mut entropy_sources = data_computer()?;
         self.shuffle_array(&mut entropy_sources);
         for source in &entropy_sources {
             let entropy_bytes = source.to_be_bytes();
@@ -115,8 +115,8 @@ impl Nebula {
 /// // Shuffle the elements of the array using the Nebula instance
 /// nebula.shuffle_array(&mut array);
 /// ```
-    fn shuffle_array<T>(&self, array: &mut [T]) {
-        let mut rng = Nebula::new(secured_seed());
+    fn shuffle_array<T>(&self, array: &mut [T]) -> Result<(), SystemTrayError> {
+        let mut rng = Nebula::new(secured_seed()?);
         rng.combine_entropy();
         let len = array.len();
         for i in (1..len).rev() {
@@ -125,11 +125,12 @@ impl Nebula {
                     let j = random_number as usize;
                     array.swap(i, j);
                 }
-                Err(err) => {
-                    eprintln!("SystemTrayError: {:?}", err);
+                Err(..) => {
+                    return Err(SystemTrayError::new(9));
                 }
             }
         }
+        Ok(())
     }
 
 /// Reseeds the internal state of the `Nebula` struct.
@@ -151,12 +152,12 @@ impl Nebula {
 /// // Reseed the Nebula instance with a new seed value
 /// nebula.reseed(987654321);
 /// ```
-    fn reseed(&mut self, new_seed: u128) {
+    fn reseed(&mut self, new_seed: u128) -> Result<(), SystemTrayError> {
         {
-            let mut bytes_since_reseed = self.bytes_since_reseed.lock().unwrap();
+            let mut bytes_since_reseed = self.bytes_since_reseed.lock().map_err(SystemTrayError::new(12))?;
 
             if *bytes_since_reseed < RESEED_THRESHOLD {
-                return;
+                return Ok(());
             }
 
             *bytes_since_reseed = 0;
@@ -165,13 +166,15 @@ impl Nebula {
         let _ = self.add_entropy();
         let combined_entropy = self.combine_entropy();
 
-        self.mix_entropy(combined_entropy);
+        self.mix_entropy(combined_entropy?);
 
-        let current_time = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos();
+        let current_time = SystemTime::now().duration_since(UNIX_EPOCH).map_err(SystemTrayError::new(11))?.as_nanos();
         if current_time - self.last_reseed_time > MAX_RESEED_INTERVAL {
             self.last_reseed_time = current_time;
             self.seed ^= new_seed;
         }
+
+        Ok(())
     }
 
 /// Combines entropy in the `Nebula` struct to produce a new seed value.
@@ -192,15 +195,15 @@ impl Nebula {
 /// // Combine entropy and obtain a new seed value
 /// let new_seed = nebula.combine_entropy();
 /// ```
-    fn combine_entropy(&self) -> u128 {
+    fn combine_entropy(&self) -> Result<u128, SystemTrayError>{
         let mut combined_entropy = self.seed;
 
-        let pool = self.pool.lock().unwrap();
+        let pool = self.pool.lock().map_err(SystemTrayError::new(12))?;
         for byte in &*pool {
             combined_entropy = combined_entropy.wrapping_mul(33).wrapping_add(u128::from(*byte));
         }
         combined_entropy ^= self.last_reseed_time;
-        combined_entropy
+        Ok(combined_entropy)
     }
 
 /// Mixes entropy in the `Nebula` struct to enhance randomness.
@@ -222,16 +225,17 @@ impl Nebula {
 /// let entropy = 987654321;
 /// nebula.mix_entropy(entropy);
 /// ```
-    fn mix_entropy(&mut self, entropy: u128) {
+    fn mix_entropy(&mut self, entropy: u128) -> Result<(), SystemTrayError> {
         let entropy_bytes = entropy.to_be_bytes();
 
         let mut hasher = Hasher::new();
-        hasher.update(self.pool.lock().unwrap().make_contiguous());
+        hasher.update(self.pool.lock().map_err(SystemTrayError::new(12))?.make_contiguous());
         hasher.update(&entropy_bytes);
 
         let mut hash = [0; 64];
         hasher.finalize_xof().fill(&mut hash);
         self.pool = Mutex::new(VecDeque::from(hash.to_vec()));
+        Ok(())
     }
 
 /// Generates a sequence of random bytes using the `Nebula` struct's internal state.
@@ -256,22 +260,22 @@ impl Nebula {
 /// // Generate 10 random bytes
 /// let random_bytes = nebula.generate_random_bytes(10);
 /// ```
-    fn generate_random_bytes(&mut self, count: usize) -> Vec<u8> {
+    fn generate_random_bytes(&mut self, count: usize) -> Result<Vec<u8>, SystemTrayError> {
         let mut random_bytes = Vec::with_capacity(count);
 
         for _ in 0..count {
 
-            let entropy = self.combine_entropy();
-            self.mix_entropy(entropy);
+            let entropy = self.combine_entropy()?;
+            self.mix_entropy(entropy)?;
 
             let random_byte = (entropy & 0xFF) as u8;
             random_bytes.push(random_byte);
         }
 
         let last_byte = random_bytes.last().copied().unwrap_or(0);
-        self.reseed(last_byte as u128);
+        self.reseed(last_byte as u128)?;
 
-        random_bytes
+        Ok(random_bytes)
     }
 
 /// Generates a 128-bit random number using the `Nebula` struct's internal state.
@@ -292,8 +296,8 @@ impl Nebula {
 /// // Generate a random number
 /// let random_number = nebula.generate_random_number();
 /// ```
-pub(crate) fn generate_random_number(&mut self) -> u128 {
-        let random_bytes = self.generate_random_bytes(8);
+pub(crate) fn generate_random_number(&mut self) -> Result<u128, SystemTrayError> {
+        let random_bytes = self.generate_random_bytes(8)?;
 
         let mut random_number: u128 = 0;
 
@@ -301,7 +305,7 @@ pub(crate) fn generate_random_number(&mut self) -> u128 {
             random_number = (random_number << 8) | u128::from(byte);
         }
 
-        random_number
+        Ok(random_number)
     }
 
 /// Generates a bounded random number using the `Nebula` struct's internal state.
@@ -409,7 +413,7 @@ fn data_computer() -> Result<[u128; 10], SystemTrayError> {
 
     let time = SystemTime::now()
         .duration_since(UNIX_EPOCH)
-        .expect("Time went backwards")
+        .map_err(SystemTrayError::new(11))?
         .as_nanos();
 
     let pid = std::process::id();
@@ -460,10 +464,10 @@ fn calculate_disk_usage(sys: &System, pid: Pid) -> u128 {
 /// // Generate a secured seed for cryptographic operations
 /// let seed = secured_seed();
 /// ```
-pub fn secured_seed() -> u128 {
+pub fn secured_seed() -> Result<u128, SystemTrayError> {
     let actual_time = SystemTime::now()
         .duration_since(UNIX_EPOCH)
-        .expect("Time went backwards")
+        .map_err(SystemTrayError::new(11))?
         .as_nanos();
 
     let context_bytes: Vec<u8> = data_computer()
@@ -480,7 +484,7 @@ pub fn secured_seed() -> u128 {
     let sum1: u128 = part1.par_iter().map(|&x| x as u128).sum();
     let sum2: u128 = part2.par_iter().map(|&x| x as u128).sum();
 
-    sum1.wrapping_mul(sum2)
+    Ok(sum1.wrapping_mul(sum2))
 }
 
 /// Shuffles the elements of a slice.
@@ -504,12 +508,13 @@ pub fn secured_seed() -> u128 {
 ///
 /// // Now `numbers` contains shuffled elements
 /// ```
-pub fn shuffle<T>(items: &mut [T]) {
+pub fn shuffle<T>(items: &mut [T]) -> Result<(), SystemTrayError>{
     let len = items.len();
     for i in (1..len).rev() {
-        let j = (secured_seed() as usize) % (i + 1);
+        let j = (secured_seed()? as usize) % (i + 1);
         items.swap(i, j);
     }
+    Ok(())
 }
 
 /// Shuffles the elements of a slice with a specified seed.
@@ -542,7 +547,7 @@ pub fn seeded_shuffle<T>(items: &mut [T], seed: usize) {
     }
 }
 
-////////// function test
+////////// function test.rs
 fn monobit_test(sequence: &[u8]) -> bool {
     let total_bits = sequence.len() * 8;
     let mut one_bits: i32 = 0;
@@ -676,14 +681,14 @@ mod tests {
     fn test_monobit() {
         let mut rng = Nebula::new(12345);
         let sequence = rng.generate_random_bytes(1000000);
-        assert!(monobit_test(&sequence), "monobit test has not been passed");
+        assert!(monobit_test(&sequence.unwrap()), "monobit test has not been passed");
     }
 
     #[test]
     fn test_secureseed() {
         let a = secured_seed();
         println!("{a}");
-        let mut rng = Nebula::new(a);
+        let mut rng = Nebula::new(a.unwrap());
 
         for _ in 0..10 {
             let random_bytes = rng.generate_random_number();
@@ -723,7 +728,7 @@ mod tests {
     #[test]
     fn test_global(){
         //println!("{}", SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos());
-        println!("{}",secured_seed());
+        println!("{}",secured_seed().unwrap());
     }
 
     #[test]

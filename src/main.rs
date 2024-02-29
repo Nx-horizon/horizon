@@ -173,17 +173,17 @@ use std::sync::{Arc, Mutex};
 /// let word_with_stars = insert_random_stars(word);
 /// println!("Word with stars: {:?}", word_with_stars);
 /// ```
-fn insert_random_stars(mut word: Vec<u8>) -> Vec<u8> {
-    let rng = Arc::new(Mutex::new(Nebula::new(secured_seed())));
+fn insert_random_stars(mut word: Vec<u8>) -> Result<Vec<u8>, SystemTrayError> {
+    let rng = Arc::new(Mutex::new(Nebula::new(secured_seed()?)));
 
-    let num_stars: usize = rng.lock().unwrap().generate_bounded_number((word.len()/2) as u128, word.len() as u128).unwrap() as usize;
+    let num_stars: usize = rng.lock().map_err(SystemTrayError::new(12))?.generate_bounded_number((word.len()/2) as u128, word.len() as u128)? as usize;
 
     let mut stars: Vec<u8> = vec![0; num_stars];
 
     let random_indices: Vec<usize> = (0..num_stars).into_par_iter()
         .map(|_| {
-            let mut rng = rng.lock().unwrap();
-            rng.generate_bounded_number(0, word.len() as u128).unwrap() as usize
+            let mut rng = rng.lock().map_err(SystemTrayError::new(12))?;
+            rng.generate_bounded_number(0, word.len() as u128)? as usize
         })
         .collect();
 
@@ -191,10 +191,10 @@ fn insert_random_stars(mut word: Vec<u8>) -> Vec<u8> {
     sorted_indices.par_sort_unstable_by(|a, b| b.cmp(a));
 
     for index in sorted_indices {
-        word.insert(index, stars.pop().unwrap());
+        word.insert(index, stars.pop().ok_or(SystemTrayError::new(13))?);
     }
 
-    word
+    Ok(word)
 }
 
 /// Creates a vector based on arithmetic operations and a seed.
@@ -249,8 +249,8 @@ fn vz_maker(val1: u64, val2:u64, seed: u64) -> Secret<Vec<u8>> {
 ///     Err(err) => eprintln!("Error: {}", err),
 /// }
 /// ```
-pub(crate) fn encrypt3(plain_text: Vec<u8>, key1: &Secret<Vec<u8>>, key2: &Secret<Vec<u8>>, password: &str) -> Result<Vec<u8>, Box<dyn Error>> {
-    let inter = insert_random_stars(plain_text);
+pub(crate) fn encrypt3(plain_text: Vec<u8>, key1: &Secret<Vec<u8>>, key2: &Secret<Vec<u8>>, password: &str) -> Result<Vec<u8>, SystemTrayError> {
+    let inter = insert_random_stars(plain_text)?;
 
     let key1 = key1.expose_secret();
     let key2 = key2.expose_secret();
@@ -463,8 +463,8 @@ pub fn unshift_bits(cipher_text: Vec<u8>, key: Secret<Vec<u8>>) -> Vec<u8> {
 /// # Examples
 ///
 /// ```
-/// // let plain_text = "cest moi le le grand test du matin et je à suis content";
-/// let plain_text = "cest moi le le grand test du matin et je à suis content éèù:;?";
+/// // let plain_text = "cest moi le le grand test.rs du matin et je à suis content";
+/// let plain_text = "cest moi le le grand test.rs du matin et je à suis content éèù:;?";
 /// let pass = "LeMOTdePAsse34!";
 ///
 /// let key1 = match generate_key2(pass) {
@@ -556,7 +556,7 @@ mod tests {
 /// # Examples
 ///
 /// ```
-/// // Execute the test for file encryption and decryption
+/// // Execute the test.rs for file encryption and decryption
 /// test_crypt_file();
 /// ```
     fn test_crypt_file(){
