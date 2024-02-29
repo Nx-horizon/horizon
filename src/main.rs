@@ -178,7 +178,7 @@ fn insert_random_stars(mut word: Vec<u8>) -> Vec<u8> {
 
     let num_stars: usize = rng.lock().unwrap().generate_bounded_number((word.len()/2) as u128, word.len() as u128).unwrap() as usize;
 
-    let mut stars: Vec<u8> = vec![94; num_stars];
+    let mut stars: Vec<u8> = vec![0; num_stars];
 
     let random_indices: Vec<usize> = (0..num_stars).into_par_iter()
         .map(|_| {
@@ -356,7 +356,7 @@ pub(crate) fn decrypt3(cipher_text: Vec<u8>, key1: &Secret<Vec<u8>>, key2: &Secr
 
         if table_2d < table_len && row < table[table_2d].len() {
             if let Some(col) = table[table_2d][row].iter().position(|x| x == c) {
-                if characters[col] != 94 {
+                if characters[col] != 0 {
                     Some(characters[col])
                 } else {
                     None
