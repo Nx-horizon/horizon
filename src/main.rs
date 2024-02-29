@@ -9,7 +9,7 @@ use rayon::prelude::*;
 use crate::systemtrayerror::SystemTrayError;
 use sysinfo::{Networks, System};
 use crate::kdfwagen::kdfwagen;
-use crate::nebula::{Nebula, secured_seed};
+use crate::nebula::{Nebula, secured_seed, seeded_shuffle};
 
 
 use secrecy::{ExposeSecret, Secret};
@@ -45,7 +45,7 @@ const KEY_LENGTH: usize = 512;
 fn table3(size: usize, seed: u64) -> Vec<Vec<Vec<u8>>> {
     let mut characters: Vec<u8> = (0..=255).collect();
 
-    nebula::seeded_shuffle(&mut characters, seed as usize);
+    seeded_shuffle(&mut characters, seed as usize);
 
     (0..size).into_par_iter().chunks(1000).map(|i_chunk| {
         i_chunk.into_par_iter().map(|i| {
@@ -143,7 +143,6 @@ fn generate_key2(seed: &str) -> Result<Secret<Vec<u8>>, SystemTrayError> {
     }
 
     let salt = get_salt();
-    println!("salt: {}", salt);
     if salt.len() < 10 {
         return Err(SystemTrayError::new(10));
     }
@@ -220,7 +219,7 @@ fn insert_random_stars(mut word: Vec<u8>) -> Vec<u8> {
 /// println!("Resulting vector: {:?}", result);
 /// ```
 fn vz_maker(val1: u64, val2:u64, seed: u64) -> Secret<Vec<u8>> {
-    kdfwagen(&[(val1+val2) as u8,(val1*val2) as u8, (val1%val2) as u8, seed as u8, val1.abs_diff(val2) as u8], get_salt().as_bytes(), 10)
+    kdfwagen(&[(val1+val2) as u8,(val1%val2) as u8, seed as u8, val1.abs_diff(val2) as u8,  val1.wrapping_mul(val2) as u8], get_salt().as_bytes(), 10)
 }
 
 
@@ -260,41 +259,38 @@ pub(crate) fn encrypt3(plain_text: Vec<u8>, key1: &Secret<Vec<u8>>, key2: &Secre
     let val2 = addition_chiffres(key1);
 
     let mut characters: Vec<u8> = (0..=255).collect();
-    let seed= val2 * val1;
+    let seed = val2 * val1;
     let table = table3(256, seed);
 
-    nebula::seeded_shuffle(&mut characters, seed as usize);
+    seeded_shuffle(&mut characters, seed as usize);
 
     let char_positions: HashMap<_, _> = characters.par_iter().enumerate().map(|(i, &c)| (c, i)).collect();
 
-
     let table_len = 256;
-
     let key1_chars: Vec<usize> = key1.into_par_iter().map(|&c| c as usize % 256).collect();
     let key2_chars: Vec<usize> = key2.into_par_iter().map(|&c| c as usize % 256).collect();
     let key1_len = KEY_LENGTH;
     let key2_len = KEY_LENGTH;
 
-    let mut cipher_text: Vec<_> = inter.par_iter().enumerate().filter_map(|(i, c)| {
-        let table_2d = key1_chars[i % key1_len] % table_len;
-        let row = key2_chars[i % key2_len] % table_len;
+    let mut cipher_text: Vec<_> = inter
+        .par_iter()
+        .enumerate()
+        .filter_map(|(i, c)| {
+            let table_2d = key1_chars[i % key1_len] % table_len;
+            let row = key2_chars[i % key2_len] % table_len;
 
-        match char_positions.get(c) {
-            Some(col) => {
-                let col = col % 256;
-
+            if let Some(col) = char_positions.get(c).map(|&col| col % 256) {
                 if table_2d < table_len && row < table[table_2d].len() && col < table[table_2d][row].len() {
                     Some(table[table_2d][row][col])
                 } else {
+                    println!("Character '{}' not found in character set", c);
                     None
                 }
-            },
-            None => {
-                println!("Character '{}' not found in character set", c);
+            } else {
                 None
-            },
-        }
-    }).collect();
+            }
+        })
+        .collect();
 
     xor_crypt3(&mut cipher_text, kdfwagen(password.as_bytes(), get_salt().as_bytes(), NUM_ITERATIONS));
     let vz = vz_maker(val1, val2, seed);
@@ -339,7 +335,7 @@ pub(crate) fn decrypt3(cipher_text: Vec<u8>, key1: &Secret<Vec<u8>>, key2: &Secr
     let seed = val2 * val1 ;
 
     let mut characters: Vec<u8> = (0..=255).collect();
-    nebula::seeded_shuffle(&mut characters, seed as usize);
+    seeded_shuffle(&mut characters, seed as usize);
 
     let table = table3(256, seed);
 
@@ -576,20 +572,19 @@ mod tests {
 
         let encrypted_content = encrypt_file(file_content.clone(), &key1, &key2.unwrap(), password);
 
+        let b = encrypted_content.unwrap();
 
-        let dcrypted_content = decrypt_file(encrypted_content.unwrap(), &key1, &key3.unwrap(), password);
+
+        let dcrypted_content = decrypt_file(b, &key1, &key3.unwrap(), password);
         let a = dcrypted_content.unwrap();
         assert_eq!(a.clone(), file_content);
-
-        let mut output_file = File::create("invoicesample3.pdf").unwrap();
-        output_file.write_all(&a.clone()).expect("TODO: panic message");
     }
 
     #[test]
     fn test_table3() {
         let size = 255;
 
-        let table = table3(size, 1234567890);
+        let table = table3(size, 123456789);
 
         for (_i, table_2d) in table.iter().enumerate() {
             for (_j, row) in table_2d.iter().enumerate() {
@@ -603,6 +598,12 @@ mod tests {
             println!();
             println!();
         }
+    }
+
+    #[test]
+    fn test_speed_table(){
+        let size = 255;
+        table3(size, 123456789);
     }
 
     #[test]
@@ -640,7 +641,7 @@ mod tests {
 
     #[test]
     fn test_shift_unshift_bits() {
-        let original_data = vec![1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
+        let original_data = vec![1, 2, 3, 4, 5, 6, 7, 8, 9, 10,1, 2, 3, 4, 5, 6, 7, 8, 9, 10,1, 2, 3, 4, 5, 6, 7, 8, 9, 10,1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
         let key = vec![1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
 
         let shifted_data = shift_bits(original_data.clone(), Secret::new(key.clone()));
