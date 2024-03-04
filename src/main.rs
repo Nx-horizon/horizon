@@ -567,7 +567,7 @@ mod tests {
 
 
         let mut file_content = Vec::new();
-        let mut file = File::open("C:/Users/mgrillon/Downloads/blake.mp4").unwrap();
+        let mut file = File::open("invoicesample.pdf").unwrap();
         file.read_to_end(&mut file_content).expect("TODO: panic message");
 
         let encrypted_content = encrypt_file(file_content.clone(), &key1, &key2.unwrap(), password);
