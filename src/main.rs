@@ -3,7 +3,7 @@ mod kdfwagen;
 mod cryptex;
 mod nebula;
 
-use std::collections::HashMap;
+use hashbrown::HashMap;
 use std::error::Error;
 use rayon::prelude::*;
 use crate::systemtrayerror::SystemTrayError;
@@ -538,7 +538,7 @@ fn main() {
 #[cfg(test)]
 mod tests {
     use std::fs::File;
-    use std::io::{Read, Write};
+    use std::io::Read;
     use crate::cryptex::{decrypt_file, encrypt_file};
     use super::*;
 
@@ -567,7 +567,7 @@ mod tests {
 
 
         let mut file_content = Vec::new();
-        let mut file = File::open("invoicesample.pdf").unwrap();
+        let mut file = File::open("C:/Users/mgrillon/Downloads/blake.mp4").unwrap();
         file.read_to_end(&mut file_content).expect("TODO: panic message");
 
         let encrypted_content = encrypt_file(file_content.clone(), &key1, &key2.unwrap(), password);

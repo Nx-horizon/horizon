@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use hashbrown::HashMap;
 use std::error::Error;
 use rayon::prelude::*;
 use secrecy::{ExposeSecret, Secret};
