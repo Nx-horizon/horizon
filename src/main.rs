@@ -649,10 +649,10 @@ mod tests {
 
         assert_eq!(original_data, unshifted_data);
     }
-    
+
     #[test]
     fn safe_crypt(){
-        let original_data = "ce soir je sors";
+        let original_data = "ce soir je sors ne t'inquiete pas je rentre bientot";
         let pass = "LeMOTdePAsse34!";
 
         let key1 = match generate_key2(pass) {
@@ -664,33 +664,31 @@ mod tests {
 
         };
 
-        let mut rng2 = Nebula::new(12345);
+        let mut rng2 = Nebula::new(123456);
         let mut liste = Vec::new();
         for i in 0..8{
             liste.push(rng2.generate_random_number().to_string());
         }
-        
+
         let mut chif= original_data.as_bytes().to_vec();
 
-        
+
         for element in liste.iter(){
-            
-            
             chif = encrypt_file(chif, &key1, &generate_key2(&element).unwrap(), pass).unwrap();
-            
-            //println!("{} - {:?}", i, String::from_utf8_lossy(&*chif.unwrap()));
+
+            println!("==> - {}",  String::from_utf8_lossy(&*chif));
         }
 
-        
+
         let mut dechif= chif;
         for element in liste.iter().rev(){
             dechif = decrypt_file(dechif, &key1, &generate_key2(&element).unwrap(), pass).unwrap();
 
-            println!(" - {:?}",  String::from_utf8_lossy(&dechif.clone()))
+            println!(" - {}",  String::from_utf8_lossy(&dechif.clone()))
         }
-        
+
         assert_eq!(original_data, String::from_utf8_lossy(&dechif.clone()))
-        
+
     }
 
 }
