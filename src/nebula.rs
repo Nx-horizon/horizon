@@ -256,7 +256,7 @@ impl Nebula {
 /// // Generate 10 random bytes
 /// let random_bytes = nebula.generate_random_bytes(10);
 /// ```
-    fn generate_random_bytes(&mut self, count: usize) -> Vec<u8> {
+pub(crate) fn generate_random_bytes(&mut self, count: usize) -> Vec<u8> {
         let mut random_bytes = Vec::with_capacity(count);
 
         for _ in 0..count {
