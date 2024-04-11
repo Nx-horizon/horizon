@@ -155,6 +155,7 @@ fn generate_key2(seed: &str) -> Result<Secret<Vec<u8>>, SystemTrayError> {
 
 
 use std::sync::{Arc, Mutex};
+use crate::cryptex::encrypt_file;
 
 /// Inserts random stars into a byte vector.
 ///
@@ -514,7 +515,7 @@ fn main() {
     match encrypt3(plain_text.as_bytes().to_vec(), &key1, &key1, pass) {
         Ok(encrypted) => {
             println!("Encrypted: {:?}", encrypted);
-            println!("convert u8: {:?}", hex::encode(&encrypted.clone()));
+            println!("convert u8: {:?}", String::from_utf8_lossy(&encrypted.clone()));
 
 
             match decrypt3(encrypted, &key1, &key1, pass) {
