@@ -3,6 +3,7 @@ mod kdfwagen;
 mod cryptex;
 mod nebula;
 
+use std::borrow::Cow;
 use hashbrown::HashMap;
 use std::error::Error;
 use rayon::prelude::*;
@@ -535,6 +536,13 @@ fn main() {
     }
 }
 
+fn test_same(m1: Vec<u8>, m2: &Vec<u8>){
+    if m1.len() == m2.len(){
+        println!("same")
+    }else { 
+        println!("diff")
+    }
+}
 
 #[cfg(test)]
 mod tests {
@@ -652,44 +660,45 @@ mod tests {
     }
 
     #[test]
-    fn safe_crypt(){
-        let original_data = "ce soir je sors ne t'inquiete pas je rentre bientot";
+    fn safe_crypt() {
+        // Données originales et mot de passe
+        let original_data = "ce soir je sors ne t'inquiète pas je rentre bientôt";
         let pass = "LeMOTdePAsse34!";
 
+        // Génération de la clé principale
         let key1 = match generate_key2(pass) {
             Ok(key) => key,
             Err(err) => {
                 eprintln!("Erreur : {}", err);
                 return;
             },
-
         };
 
-        let mut rng2 = Nebula::new(123456);
-        let mut liste = Vec::new();
-        for i in 0..8{
-            liste.push(rng2.generate_random_number().to_string());
+        // Génération de la liste de clés aléatoires
+        let mut rng = Nebula::new(123456);
+        let liste: Vec<String> = (0..8)
+            .map(|_| rng.generate_random_number().to_string())
+            .collect();
+
+        // Chiffrement des données originales avec chaque clé aléatoire
+        let mut chif = original_data.as_bytes().to_vec();
+        for element in &liste {
+            chif = encrypt_file(chif, &key1, &generate_key2(element).unwrap(), pass).unwrap();
+            test_same(original_data.as_bytes().to_vec(), &chif);
+            println!("Chiffré : {}", String::from_utf8_lossy(&chif));
+        }
+        
+        println!("-----------------------------------------");
+
+        // Déchiffrement des données chiffrées avec chaque clé aléatoire dans l'ordre inverse
+        let mut dechif = chif;
+        for element in liste.iter().rev() {
+            dechif = decrypt_file(dechif, &key1, &generate_key2(element).unwrap(), pass).unwrap();
+            println!("Déchiffré : {}", String::from_utf8_lossy(&dechif));
         }
 
-        let mut chif= original_data.as_bytes().to_vec();
-
-
-        for element in liste.iter(){
-            chif = encrypt_file(chif, &key1, &generate_key2(&element).unwrap(), pass).unwrap();
-
-            println!("==> - {}",  String::from_utf8_lossy(&*chif));
-        }
-
-
-        let mut dechif= chif;
-        for element in liste.iter().rev(){
-            dechif = decrypt_file(dechif, &key1, &generate_key2(&element).unwrap(), pass).unwrap();
-
-            println!(" - {}",  String::from_utf8_lossy(&dechif.clone()))
-        }
-
-        assert_eq!(original_data, String::from_utf8_lossy(&dechif.clone()))
-
+        // Vérification que les données déchiffrées sont égales aux données originales
+        assert_eq!(original_data, String::from_utf8_lossy(&dechif));
     }
 
 }
