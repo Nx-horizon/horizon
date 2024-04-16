@@ -40,6 +40,10 @@ impl SystemTrayError {
             8 => "Error no process found".to_string(),
             9 => "min is superior to max".to_string(),
             10 => "Salt is too short".to_string(),
+            11 => "Failed to acquire lock on pool".to_string(),
+            12 => "Failed to convert source to u128".to_string(),
+            13 => "Error retrieving system time".to_string(),
+            14 => "Error retrieving random star for insertion into word".to_string(),
             _ => format!("Unknown error with code {}", code),
         };
 
