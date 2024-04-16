@@ -86,9 +86,7 @@ impl Nebula {
         self.shuffle_array(&mut entropy_sources)?;
 
         for source in &entropy_sources {
-            let entropy_bytes = u128::try_from(*source)
-                .map_err(|_| SystemTrayError::new(12))?
-                .to_be_bytes();
+            let entropy_bytes = source.to_be_bytes();
             
             let mut hasher = Hasher::new();
             hasher.update(&entropy_bytes);
