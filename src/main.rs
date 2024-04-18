@@ -3,7 +3,6 @@ mod kdfwagen;
 mod cryptex;
 mod nebula;
 
-use std::borrow::Cow;
 use hashbrown::HashMap;
 use std::error::Error;
 use rayon::prelude::*;
@@ -156,7 +155,6 @@ fn generate_key2(seed: &str) -> Result<Secret<Vec<u8>>, SystemTrayError> {
 
 
 use std::sync::{Arc, Mutex};
-use crate::cryptex::encrypt_file;
 
 /// Inserts random stars into a byte vector.
 ///
@@ -175,28 +173,31 @@ use crate::cryptex::encrypt_file;
 /// let word_with_stars = insert_random_stars(word);
 /// println!("Word with stars: {:?}", word_with_stars);
 /// ```
-fn insert_random_stars(mut word: Vec<u8>) -> Vec<u8> {
-    let rng = Arc::new(Mutex::new(Nebula::new(secured_seed())));
+fn insert_random_stars(mut word: Vec<u8>) -> Result<Vec<u8>, SystemTrayError> {
+    let rng = Arc::new(Mutex::new(Nebula::new(secured_seed()?)));
 
-    let num_stars: usize = rng.lock().unwrap().generate_bounded_number((word.len()/2) as u128, word.len() as u128).unwrap() as usize;
+    let num_stars: usize = rng.lock().map_err(|_| SystemTrayError::new(11))?.generate_bounded_number((word.len()/2) as u128, word.len() as u128)? as usize;
 
     let mut stars: Vec<u8> = vec![0; num_stars];
 
-    let random_indices: Vec<usize> = (0..num_stars).into_par_iter()
+    let random_indices: Result<Vec<usize>, SystemTrayError> = (0..num_stars).into_par_iter()
         .map(|_| {
-            let mut rng = rng.lock().unwrap();
-            rng.generate_bounded_number(0, word.len() as u128).unwrap() as usize
+            let mut rng = rng.lock().map_err(|_| SystemTrayError::new(11))?;
+            let index = rng.generate_bounded_number(0, word.len() as u128)?;
+            Ok(index as usize)
         })
         .collect();
+
+    let random_indices = random_indices?;
 
     let mut sorted_indices = random_indices;
     sorted_indices.par_sort_unstable_by(|a, b| b.cmp(a));
 
     for index in sorted_indices {
-        word.insert(index, stars.pop().unwrap());
+        word.insert(index, stars.pop().ok_or_else(|| SystemTrayError::new(13))?);
     }
 
-    word
+    Ok(word)
 }
 
 /// Creates a vector based on arithmetic operations and a seed.
@@ -252,7 +253,7 @@ fn vz_maker(val1: u64, val2:u64, seed: u64) -> Secret<Vec<u8>> {
 /// }
 /// ```
 pub(crate) fn encrypt3(plain_text: Vec<u8>, key1: &Secret<Vec<u8>>, key2: &Secret<Vec<u8>>, password: &str) -> Result<Vec<u8>, Box<dyn Error>> {
-    let inter = insert_random_stars(plain_text);
+    let inter = insert_random_stars(plain_text)?;
 
     let key1 = key1.expose_secret();
     let key2 = key2.expose_secret();
@@ -641,7 +642,7 @@ mod tests {
     #[test]
     fn test_insert_random_stars() {
         let word = "Hello World!".as_bytes().to_vec();
-        let word2 = insert_random_stars(word.clone());
+        let word2 = insert_random_stars(word.clone()).unwrap();
 
         println!("Word: {:?}", word2);
         assert_ne!(word, word2);
@@ -677,7 +678,7 @@ mod tests {
         // Génération de la liste de clés aléatoires
         let mut rng = Nebula::new(123456);
         let liste: Vec<String> = (0..8)
-            .map(|_| rng.generate_random_number().to_string())
+            .map(|_| rng.generate_random_number().unwrap().to_string())
             .collect();
 
         // Chiffrement des données originales avec chaque clé aléatoire
