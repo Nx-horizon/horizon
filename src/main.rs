@@ -252,7 +252,7 @@ fn vz_maker(val1: u64, val2:u64, seed: u64) -> Secret<Vec<u8>> {
 ///     Err(err) => eprintln!("Error: {}", err),
 /// }
 /// ```
-pub(crate) fn encrypt3(plain_text: Vec<u8>, key1: &Secret<Vec<u8>>, key2: &Secret<Vec<u8>>, password: &str) -> Result<Vec<u8>, Box<dyn Error>> {
+pub(crate) fn encrypt3(plain_text: Vec<u8>, key1: &Secret<Vec<u8>>, key2: &Secret<Vec<u8>>) -> Result<Vec<u8>, Box<dyn Error>> {
     let inter = insert_random_stars(plain_text)?;
 
     let key1 = key1.expose_secret();
@@ -295,7 +295,7 @@ pub(crate) fn encrypt3(plain_text: Vec<u8>, key1: &Secret<Vec<u8>>, key2: &Secre
         })
         .collect();
 
-    xor_crypt3(&mut cipher_text, kdfwagen(password.as_bytes(), get_salt().as_bytes(), NUM_ITERATIONS));
+    xor_crypt3(&mut cipher_text, key1);
     let vz = vz_maker(val1, val2, seed);
 
     Ok(shift_bits(cipher_text, vz))
@@ -327,7 +327,7 @@ pub(crate) fn encrypt3(plain_text: Vec<u8>, key1: &Secret<Vec<u8>>, key2: &Secre
 ///     Err(err) => eprintln!("Error: {}", err),
 /// }
 /// ```
-pub(crate) fn decrypt3(cipher_text: Vec<u8>, key1: &Secret<Vec<u8>>, key2: &Secret<Vec<u8>>, password: &str) -> Result<Vec<u8>, Box<dyn Error>> {
+pub(crate) fn decrypt3(cipher_text: Vec<u8>, key1: &Secret<Vec<u8>>, key2: &Secret<Vec<u8>>) -> Result<Vec<u8>, Box<dyn Error>> {
 
     let key1 = key1.expose_secret();
     let key2 = key2.expose_secret();
@@ -346,7 +346,7 @@ pub(crate) fn decrypt3(cipher_text: Vec<u8>, key1: &Secret<Vec<u8>>, key2: &Secr
 
     let vz = vz_maker(val1, val2, seed);
     let mut cipher_text = unshift_bits(cipher_text, vz);
-    xor_crypt3(&mut cipher_text, kdfwagen(password.as_bytes(), get_salt().as_bytes(), NUM_ITERATIONS));
+    xor_crypt3(&mut cipher_text, key1);
 
     let key1_chars: Vec<usize> = key1.into_par_iter().map(|&c| c as usize % 256).collect();
     let key2_chars: Vec<usize> = key2.into_par_iter().map(|&c| c as usize % 256).collect();
@@ -392,8 +392,7 @@ pub(crate) fn decrypt3(cipher_text: Vec<u8>, key1: &Secret<Vec<u8>>, key2: &Secr
 ///
 /// // At this point, `data` contains the encrypted or decrypted result.
 /// ```
-fn xor_crypt3(input: &mut [u8], key: Secret<Vec<u8>>) {
-    let key = key.expose_secret();
+fn xor_crypt3(input: &mut [u8], key: &Vec<u8>) {
     input.par_iter_mut().enumerate().for_each(|(i, byte)| {
         *byte ^= key[i % key.len()];
     });
@@ -514,13 +513,13 @@ fn main() {
 
     };
 
-    match encrypt3(plain_text.as_bytes().to_vec(), &key1, &key1, pass) {
+    match encrypt3(plain_text.as_bytes().to_vec(), &key1, &generate_key2("145978675683147").unwrap()) {
         Ok(encrypted) => {
             println!("Encrypted: {:?}", encrypted);
             println!("convert u8: {:?}", String::from_utf8_lossy(&encrypted.clone()));
 
 
-            match decrypt3(encrypted, &key1, &key1, pass) {
+            match decrypt3(encrypted, &key1, &generate_key2("145978675683147").unwrap()) {
                 Ok(decrypted) => {
                     println!("Decrypted: {:?}", decrypted);
                     println!("convert u8: {:?}", String::from_utf8(decrypted.clone()).unwrap());
@@ -537,13 +536,6 @@ fn main() {
     }
 }
 
-fn test_same(m1: Vec<u8>, m2: &Vec<u8>){
-    if m1.len() == m2.len(){
-        println!("same")
-    }else { 
-        println!("diff")
-    }
-}
 
 #[cfg(test)]
 mod tests {
@@ -580,12 +572,12 @@ mod tests {
         let mut file = File::open("invoicesample.pdf").unwrap();
         file.read_to_end(&mut file_content).expect("TODO: panic message");
 
-        let encrypted_content = encrypt_file(file_content.clone(), &key1, &key2.unwrap(), password);
+        let encrypted_content = encrypt_file(file_content.clone(), &key1, &key2.unwrap());
 
         let b = encrypted_content.unwrap();
 
 
-        let dcrypted_content = decrypt_file(b, &key1, &key3.unwrap(), password);
+        let dcrypted_content = decrypt_file(b, &key1, &key3.unwrap());
         let a = dcrypted_content.unwrap();
         assert_eq!(a.clone(), file_content);
     }
@@ -666,6 +658,8 @@ mod tests {
         let original_data = "ce soir je sors ne t'inquiète pas je rentre bientôt";
         let pass = "LeMOTdePAsse34!";
 
+        const ROUND: usize = 8;
+
         // Génération de la clé principale
         let key1 = match generate_key2(pass) {
             Ok(key) => key,
@@ -676,30 +670,44 @@ mod tests {
         };
 
         // Génération de la liste de clés aléatoires
-        let mut rng = Nebula::new(123456);
-        let liste: Vec<String> = (0..8)
+        let mut rng = Nebula::new(123456789);
+        let liste: Vec<String> = (0..ROUND)
             .map(|_| rng.generate_random_number().unwrap().to_string())
             .collect();
 
-        // Chiffrement des données originales avec chaque clé aléatoire
         let mut chif = original_data.as_bytes().to_vec();
-        for element in &liste {
-            chif = encrypt_file(chif, &key1, &generate_key2(element).unwrap(), pass).unwrap();
-            test_same(original_data.as_bytes().to_vec(), &chif);
+        let mut dechif = "".as_bytes().to_vec();
+
+        for (index, element) in liste.iter().enumerate() {
+            println!("element : {}", element);
+            if index < 1 {
+                chif = encrypt3(chif, &key1, &generate_key2(element).unwrap()).unwrap();
+
+            } else {
+                chif = encrypt_file(chif, &key1, &generate_key2(element).unwrap()).unwrap();
+                //println!("Chiffré : {}", String::from_utf8_lossy(&chif));
+                dechif = chif.clone();
+            }
             println!("Chiffré : {}", String::from_utf8_lossy(&chif));
         }
+
         
         println!("-----------------------------------------");
 
         // Déchiffrement des données chiffrées avec chaque clé aléatoire dans l'ordre inverse
-        let mut dechif = chif;
-        for element in liste.iter().rev() {
-            dechif = decrypt_file(dechif, &key1, &generate_key2(element).unwrap(), pass).unwrap();
-            println!("Déchiffré : {}", String::from_utf8_lossy(&dechif));
+        for (index, element) in liste.iter().enumerate().rev() {
+            println!("element : {}", element);
+            if index < 1 {
+                dechif = decrypt3(dechif, &key1, &generate_key2(element).unwrap()).unwrap();
+
+            } else {
+                dechif = decrypt_file(dechif, &key1, &generate_key2(element).unwrap()).unwrap();
+
+            }
+            println!("déChiffré : {}", String::from_utf8_lossy(&dechif));
         }
 
         // Vérification que les données déchiffrées sont égales aux données originales
         assert_eq!(original_data, String::from_utf8_lossy(&dechif));
     }
-
 }

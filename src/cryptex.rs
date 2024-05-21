@@ -1,10 +1,10 @@
-use hashbrown::HashMap;
 use std::error::Error;
+
+use hashbrown::HashMap;
 use rayon::prelude::*;
 use secrecy::{ExposeSecret, Secret};
-use crate::{addition_chiffres, get_salt, KEY_LENGTH, nebula, NUM_ITERATIONS, shift_bits, table3, unshift_bits, vz_maker, xor_crypt3};
-use crate::kdfwagen::kdfwagen;
 
+use crate::{addition_chiffres, KEY_LENGTH, nebula, shift_bits, table3, unshift_bits, vz_maker, xor_crypt3};
 
 /// This function encrypts the content of a file using two secret keys and a password.
 ///
@@ -50,7 +50,7 @@ use crate::kdfwagen::kdfwagen;
 ///     }
 /// }
 /// ```
-pub(crate) fn encrypt_file(plain_text: Vec<u8>, key1: &Secret<Vec<u8>>, key2: &Secret<Vec<u8>>, password: &str) -> Result<Vec<u8>, Box<dyn Error>> {
+pub(crate) fn encrypt_file(plain_text: Vec<u8>, key1: &Secret<Vec<u8>>, key2: &Secret<Vec<u8>>) -> Result<Vec<u8>, Box<dyn Error>> {
 
     let key1 = key1.expose_secret();
     let key2 = key2.expose_secret();
@@ -95,7 +95,7 @@ pub(crate) fn encrypt_file(plain_text: Vec<u8>, key1: &Secret<Vec<u8>>, key2: &S
         }
     }).collect();
 
-    xor_crypt3(&mut cipher_text, kdfwagen(password.as_bytes(), get_salt().as_bytes(), NUM_ITERATIONS));
+    xor_crypt3(&mut cipher_text, key1);
     let vz = vz_maker(val1, val2, seed);
 
     Ok(shift_bits(cipher_text, vz))
@@ -148,7 +148,7 @@ pub(crate) fn encrypt_file(plain_text: Vec<u8>, key1: &Secret<Vec<u8>>, key2: &S
 ///     }
 /// }
 /// ```
-pub(crate) fn decrypt_file(cipher_text: Vec<u8>, key1: &Secret<Vec<u8>>, key2: &Secret<Vec<u8>>, password: &str) -> Result<Vec<u8>, Box<dyn Error>> {
+pub(crate) fn decrypt_file(cipher_text: Vec<u8>, key1: &Secret<Vec<u8>>, key2: &Secret<Vec<u8>>) -> Result<Vec<u8>, Box<dyn Error>> {
 
 
     let key1 = key1.expose_secret();
@@ -168,7 +168,7 @@ pub(crate) fn decrypt_file(cipher_text: Vec<u8>, key1: &Secret<Vec<u8>>, key2: &
 
     let vz = vz_maker(val1, val2, seed);
     let mut cipher_text = unshift_bits(cipher_text, vz);
-    xor_crypt3(&mut cipher_text, kdfwagen(password.as_bytes(), get_salt().as_bytes(), NUM_ITERATIONS));
+    xor_crypt3(&mut cipher_text, key1);
 
     let key1_chars: Vec<usize> = key1.into_par_iter().map(|&c| c as usize % 256).collect();
     let key2_chars: Vec<usize> = key2.into_par_iter().map(|&c| c as usize % 256).collect();
