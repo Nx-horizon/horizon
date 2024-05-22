@@ -292,7 +292,9 @@ pub(crate) fn encrypt3(plain_text: Vec<u8>, key1: &Secret<Vec<u8>>, key2: &Secre
         })
         .collect();
 
-    xor_crypt3(&mut cipher_text, key1);
+    let mut key_clone = key1.clone();
+    key_clone.rotate_left(seed as usize % key1.clone().len());
+    xor_crypt3(&mut cipher_text, &key_clone);
     let vz = vz_maker(val1, val2, seed);
 
     Ok(shift_bits(cipher_text, vz))
@@ -343,7 +345,10 @@ pub(crate) fn decrypt3(cipher_text: Vec<u8>, key1: &Secret<Vec<u8>>, key2: &Secr
 
     let vz = vz_maker(val1, val2, seed);
     let mut cipher_text = unshift_bits(cipher_text, vz);
-    xor_crypt3(&mut cipher_text, key1);
+
+    let mut key_clone = key1.clone();
+    key_clone.rotate_left(seed as usize % key1.clone().len());
+    xor_crypt3(&mut cipher_text, &key_clone);
 
     let key1_chars: Vec<usize> = key1.into_par_iter().map(|&c| c as usize % 256).collect();
     let key2_chars: Vec<usize> = key2.into_par_iter().map(|&c| c as usize % 256).collect();
@@ -520,7 +525,7 @@ fn main() {
             match decrypt3(encrypted, &key1, &key1) {
                 Ok(decrypted) => {
                     println!("Decrypted: {:?}", decrypted);
-                    println!("convert u8: {:?}", String::from_utf8(decrypted.clone()).unwrap());
+                    println!("convert u8: {:?}", String::from_utf8_lossy(&*decrypted));
                     if decrypted == plain_text.as_bytes().to_vec() {
                         println!("Success!");
                     } else {
@@ -676,39 +681,34 @@ mod tests {
             .collect();
 
         let mut chif = original_data.as_bytes().to_vec();
-        let mut dechif = "".as_bytes().to_vec();
 
         for (index, element) in liste.iter().enumerate() {
-            println!("element : {}", element);
-            if index < 1 {
-                chif = encrypt3(chif, &key1, &generate_key2(element).unwrap()).unwrap();
-
+            let key2 = generate_key2(element).unwrap();
+            chif = if index < 1 {
+                encrypt3(chif, &key1, &key2).unwrap()
             } else {
-                chif = encrypt_file(chif, &key1, &generate_key2(element).unwrap()).unwrap();
-                //println!("Chiffré : {}", String::from_utf8_lossy(&chif));
-                dechif = chif.clone();
-            }
-            println!("Chiffré : {}", String::from_utf8_lossy(&chif));
-        }
+                encrypt_file(chif, &key1, &key2).unwrap()
+            };
 
+            println!(" {} Chiffré : {}",index, String::from_utf8_lossy(&chif));
+        }
 
         println!("-----------------------------------------");
 
-        // Déchiffrement des données chiffrées avec chaque clé aléatoire dans l'ordre inverse
         for (index, element) in liste.iter().enumerate().rev() {
-            println!("element : {}", element);
-            if index < 1 {
-                dechif = decrypt3(dechif, &key1, &generate_key2(element).unwrap()).unwrap();
-
+            let key2 = generate_key2(element).unwrap();
+            chif = if index < 1 {
+                println!("taratatata");
+                decrypt3(chif, &key1, &key2).unwrap()
             } else {
-                dechif = decrypt_file(dechif, &key1, &generate_key2(element).unwrap()).unwrap();
+                println!("taratatata");
+                decrypt_file(chif, &key1, &key2).unwrap()
+            };
 
-            }
-            println!("déChiffré : {}", String::from_utf8_lossy(&dechif));
+            println!("{} déChiffré : {}",index, String::from_utf8_lossy(&chif));
         }
 
-        // Vérification que les données déchiffrées sont égales aux données originales
-        assert_eq!(original_data, String::from_utf8_lossy(&dechif));
+        assert_eq!(original_data, String::from_utf8_lossy(&chif));
     }
 
 
