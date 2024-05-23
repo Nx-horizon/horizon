@@ -395,7 +395,6 @@ pub(crate) fn decrypt3(cipher_text: Vec<u8>, key1: &Secret<Vec<u8>>, key2: &Secr
 /// // At this point, `data` contains the encrypted or decrypted result.
 /// ```
 fn xor_crypt3(input: &mut [u8], key: &Vec<u8>) {
-    let key = key;
     input.par_iter_mut().enumerate().for_each(|(i, byte)| {
         *byte ^= key[i % key.len()];
     });
@@ -525,7 +524,7 @@ fn main() {
             match decrypt3(encrypted, &key1, &key1) {
                 Ok(decrypted) => {
                     println!("Decrypted: {:?}", decrypted);
-                    println!("convert u8: {:?}", String::from_utf8_lossy(&*decrypted));
+                    println!("convert u8: {:?}", String::from_utf8_lossy(&decrypted));
                     if decrypted == plain_text.as_bytes().to_vec() {
                         println!("Success!");
                     } else {
@@ -682,7 +681,7 @@ mod tests {
 
         let mut chif = original_data.as_bytes().to_vec();
 
-        for (index, element) in liste.iter().enumerate() {
+        for (index, element) in liste.iter().enumerate() { //TODO modifier key1 rotation par rapport à key 2
             let key2 = generate_key2(element).unwrap();
             chif = if index < 1 {
                 encrypt3(chif, &key1, &key2).unwrap()
