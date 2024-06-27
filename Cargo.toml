@@ -6,11 +6,11 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-rayon = "1.9.0"
-sysinfo = "0.30.5"
-blake3 = "1.5.0"
+rayon = "1.10.0"
+sysinfo = "0.30.12"
+blake3 = "1.5.1"
 hex = "0.4.3"
 rust-argon2 = "2.1.0"
 
 secrecy = { version = "0.8.0", features = ["alloc"] }
-hashbrown = { version = "0.14.3", features = ["rayon"] }
+hashbrown = { version = "0.14.5", features = ["rayon"] }
