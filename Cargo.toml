@@ -10,6 +10,7 @@ rayon = "1.9.0"
 sysinfo = "0.30.5"
 blake3 = "1.5.0"
 hex = "0.4.3"
+rust-argon2 = "2.1.0"
 
 secrecy = { version = "0.8.0", features = ["alloc"] }
 hashbrown = { version = "0.14.3", features = ["rayon"] }

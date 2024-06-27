@@ -1,12 +1,13 @@
 use std::error::Error;
 use std::sync::{Arc, Mutex};
+use argon2::Config;
 
 use hashbrown::HashMap;
 use rayon::prelude::*;
 use secrecy::{ExposeSecret, Secret};
 use sysinfo::{Networks, System};
 
-use crate::cryptex::encrypt_file;
+use crate::cryptex::{decrypt_file, encrypt_file};
 use crate::kdfwagen::kdfwagen;
 use crate::nebula::{Nebula, secured_seed, seeded_shuffle};
 use crate::systemtrayerror::SystemTrayError;
@@ -155,6 +156,16 @@ fn generate_key2(seed: &str) -> Result<Secret<Vec<u8>>, SystemTrayError> {
     Ok(seed)
 }
 
+fn gene3(seed: &str) -> Result<Secret<Vec<u8>>, SystemTrayError> {
+    let salt = get_salt();
+
+    let config = Config::default();
+    let hash = argon2::hash_encoded(seed.as_ref(), salt.as_ref(), &config).unwrap();
+    let hash = Secret::new(hash.as_bytes().to_vec());
+    
+    Ok(hash)
+}
+
 
 /// Inserts random stars into a byte vector.
 ///
@@ -293,7 +304,7 @@ pub(crate) fn encrypt3(plain_text: Vec<u8>, key1: &Secret<Vec<u8>>, key2: &Secre
         .collect();
 
     let mut key_clone = key1.clone();
-    key_clone.rotate_left(seed as usize % key1.clone().len());
+    key_clone.rotate_left(seed as usize % 64);
     xor_crypt3(&mut cipher_text, &key_clone);
     let vz = vz_maker(val1, val2, seed);
 
@@ -347,7 +358,7 @@ pub(crate) fn decrypt3(cipher_text: Vec<u8>, key1: &Secret<Vec<u8>>, key2: &Secr
     let mut cipher_text = unshift_bits(cipher_text, vz);
 
     let mut key_clone = key1.clone();
-    key_clone.rotate_left(seed as usize % key1.clone().len());
+    key_clone.rotate_left(seed as usize % 64);
     xor_crypt3(&mut cipher_text, &key_clone);
 
     let key1_chars: Vec<usize> = key1.into_par_iter().map(|&c| c as usize % 256).collect();
@@ -502,40 +513,55 @@ pub fn unshift_bits(cipher_text: Vec<u8>, key: Secret<Vec<u8>>) -> Vec<u8> {
 /// }
 /// ```
 fn main() {
-    let plain_text = "hello world i'm the best at making strong encryption system éà";
+    // Données originales et mot de passe
+    let original_data = "ce soir je sors ne t'inquiète pas je rentre bientôt";
     let pass = "LeMOTdePAsse34!";
 
+    const ROUND: usize = 8;
 
-    let key1 = match generate_key2(pass) {
+    // Génération de la clé principale
+    let key1 = match gene3(pass) {
         Ok(key) => key,
         Err(err) => {
             eprintln!("Erreur : {}", err);
             return;
         },
-
     };
 
-    match encrypt3(plain_text.as_bytes().to_vec(), &key1, &key1) {
-        Ok(encrypted) => {
-            println!("Encrypted: {:?}", encrypted);
-            println!("convert u8: {:?}", String::from_utf8_lossy(&encrypted.clone()));
+    // Génération de la liste de clés aléatoires
+    let mut rng = Nebula::new(123456789);
+    let liste: Vec<String> = (0..ROUND)
+        .map(|_| rng.generate_random_number().to_string())
+        .collect();
 
+    let mut chif = original_data.as_bytes().to_vec();
 
-            match decrypt3(encrypted, &key1, &key1) {
-                Ok(decrypted) => {
-                    println!("Decrypted: {:?}", decrypted);
-                    println!("convert u8: {:?}", String::from_utf8_lossy(&decrypted));
-                    if decrypted == plain_text.as_bytes().to_vec() {
-                        println!("Success!");
-                    } else {
-                        println!("Decryption failed");
-                    }
-                },
-                Err(e) => panic!("Decryption failed with error: {:?}", e),
-            }
-        }
-        Err(e) => panic!("Encryption failed with error: {:?}", e),
+    for (index, element) in liste.iter().enumerate() { //TODO modifier key1 rotation par rapport à key 2
+        let key2 = gene3(element).unwrap();
+        chif = if index < 1 {
+            encrypt3(chif, &key1, &key2).unwrap()
+        } else {
+            encrypt_file(chif, &key1, &key2).unwrap()
+        };
+
+        println!(" {} Chiffré : {}",index, String::from_utf8_lossy(&chif));
     }
+
+    println!("-----------------------------------------");
+
+    for (index, element) in liste.iter().enumerate().rev() {
+        let key2 = gene3(element).unwrap();
+        chif = if index < 1 {
+            decrypt3(chif, &key1, &key2).unwrap()
+        } else {
+            decrypt_file(chif, &key1, &key2).unwrap()
+        };
+
+        println!("{} déChiffré : {}",index, String::from_utf8_lossy(&chif));
+    }
+
+    assert_eq!(original_data, String::from_utf8_lossy(&chif));
+
 }
 
 #[cfg(test)]
@@ -665,7 +691,7 @@ mod tests {
         const ROUND: usize = 8;
 
         // Génération de la clé principale
-        let key1 = match generate_key2(pass) {
+        let key1 = match gene3(pass) {
             Ok(key) => key,
             Err(err) => {
                 eprintln!("Erreur : {}", err);
@@ -697,10 +723,8 @@ mod tests {
         for (index, element) in liste.iter().enumerate().rev() {
             let key2 = generate_key2(element).unwrap();
             chif = if index < 1 {
-                println!("taratatata");
                 decrypt3(chif, &key1, &key2).unwrap()
             } else {
-                println!("taratatata");
                 decrypt_file(chif, &key1, &key2).unwrap()
             };
 
