@@ -6,7 +6,7 @@ use rayon::prelude::*;
 use secrecy::{ExposeSecret, Secret};
 use sysinfo::{Networks, System};
 
-use crate::cryptex::encrypt_file;
+use crate::cryptex::{decrypt_file, encrypt_file};
 use crate::kdfwagen::kdfwagen;
 use crate::nebula::{Nebula, secured_seed, seeded_shuffle};
 use crate::systemtrayerror::SystemTrayError;
@@ -539,6 +539,45 @@ fn main() {
     }
 }
 
+fn safe_cryp() -> Vec<u8> {
+    // Données originales et mot de passe
+    let original_data = "ce soir je sors";
+    let pass = "LeMOTdePAsse34!";
+
+    const ROUND: usize = 8;
+
+    // Génération de la clé principale
+    let key1 = match generate_key2(pass) {
+        Ok(key) => key,
+        Err(err) => {
+            eprintln!("Erreur : {}", err);
+            return vec![];
+        },
+    };
+
+    // Génération de la liste de clés aléatoires
+    let mut rng = Nebula::new(123456789);
+    let liste: Vec<String> = (0..ROUND)
+        .map(|_| rng.generate_random_number().to_string())
+        .collect();
+
+    let mut chif = original_data.as_bytes().to_vec();
+
+    for (index, element) in liste.iter().enumerate() {
+        let key2 = generate_key2(element).unwrap();
+        chif = if index < 1 {
+            encrypt3(chif, &key1, &key2).unwrap()
+        } else {
+            encrypt_file(chif, &key1, &key2).unwrap()
+        };
+
+
+    }
+
+    chif
+
+}
+
 #[cfg(test)]
 mod tests {
     use std::fs::File;
@@ -698,10 +737,8 @@ mod tests {
         for (index, element) in liste.iter().enumerate().rev() {
             let key2 = generate_key2(element).unwrap();
             chif = if index < 1 {
-                println!("taratatata");
                 decrypt3(chif, &key1, &key2).unwrap()
             } else {
-                println!("taratatata");
                 decrypt_file(chif, &key1, &key2).unwrap()
             };
 
@@ -709,6 +746,53 @@ mod tests {
         }
 
         assert_eq!(original_data, String::from_utf8_lossy(&chif));
+    }
+
+    use std::io::Write;
+    
+    #[test]
+    fn test_safe_crypt() -> std::io::Result<()> {
+        // Ouvrir le fichier en mode écriture
+        let mut file = File::create("output.txt")?;
+
+        // Lancer safe_crypt 100 fois
+        for _ in 0..100 {
+            // Appeler la fonction safe_crypt (à définir)
+            let result = safe_cryp();
+
+            // Écrire le résultat dans le fichier
+            writeln!(file, "{:?}", result)?;
+        }
+
+        Ok(())
+    }
+    
+    use std::io::{BufRead, BufReader};
+
+    #[test]
+    fn test_duplicate_lines() -> std::io::Result<()> {
+        // Ouvrir le fichier output.txt en lecture
+        let input_file = File::open("output.txt")?;
+        let reader = BufReader::new(input_file);
+
+        // Ouvrir le fichier tri.txt en écriture
+        let mut output_file = File::create("tri.txt")?;
+
+        // Lire toutes les lignes du fichier
+        let lines: Vec<String> = reader.lines().collect::<Result<_, _>>()?;
+
+        // Parcourir chaque ligne du fichier
+        for i in 0..lines.len() {
+            for j in i + 1..lines.len() {
+                // Si deux lignes sont identiques
+                if lines[i] == lines[j] {
+                    // Écrire la ligne dans le fichier tri.txt
+                    writeln!(output_file, "{}", lines[i])?;
+                }
+            }
+        }
+
+        Ok(())
     }
 
 

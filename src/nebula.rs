@@ -655,7 +655,7 @@ mod tests {
         let mut rng = Nebula::new(SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos());
         let mut distribution_counts = HashMap::new();
 
-        for _ in 0..10000 {
+        for _ in 0..100000 {
             let number = rng.generate_bounded_number(10, 20).unwrap();
 
             // Update the distribution counter
@@ -668,7 +668,7 @@ mod tests {
         // Check if the distribution is uniform
         for count in distribution_counts.values() {
             println!("count: {}", count);
-            assert!(*count >= 830 && *count <= 1000, "Distribution is not uniform");
+            assert!(*count >= 8900 && *count <= 10000, "Distribution is not uniform");
         }
     }
 
