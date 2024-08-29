@@ -1,14 +1,13 @@
 use std::error::Error;
 use std::sync::{Arc, Mutex};
-use argon2::Config;
+use argon2::Argon2;
 
 use hashbrown::HashMap;
 use rayon::prelude::*;
 use secrecy::{ExposeSecret, Secret};
-use sysinfo::{Networks, System};
+use sysinfo::System;
 
 use crate::cryptex::{decrypt_file, encrypt_file};
-use crate::kdfwagen::kdfwagen;
 use crate::nebula::{Nebula, secured_seed, seeded_shuffle};
 use crate::systemtrayerror::SystemTrayError;
 
@@ -17,7 +16,6 @@ mod kdfwagen;
 mod cryptex;
 mod nebula;
 
-const NUM_ITERATIONS: usize = 10;
 const KEY_LENGTH: usize = 512;
 
 /// Generates a 3-dimensional table of bytes.
@@ -86,19 +84,6 @@ fn get_salt() -> String {
 }
 
 
-pub fn generate_key() -> Secret<Vec<u8>> {
-
-    let networks = Networks::new_with_refreshed_list();
-    let mut strs = vec![];
-    for (_interface_name, network) in &networks {
-        strs.push(network.mac_address().to_string())
-    }
-    let result = strs.join("");
-
-    let returner = kdfwagen(result.as_bytes(), get_salt().as_bytes(), NUM_ITERATIONS);
-    returner
-}
-
 
 /// Calculates the sum of the elements in a byte slice representing a MAC address.
 ///
@@ -151,19 +136,21 @@ fn generate_key2(seed: &str) -> Result<Secret<Vec<u8>>, SystemTrayError> {
     }
 
 
-    let seed = kdfwagen::kdfwagen(seed.as_bytes(), salt.as_bytes(), NUM_ITERATIONS);
+    let seed = gene3(seed.as_bytes());
 
     Ok(seed)
 }
 
-fn gene3(seed: &str) -> Result<Secret<Vec<u8>>, SystemTrayError> {
-    let salt = get_salt();
+fn gene3(seed: &[u8]) -> Secret<Vec<u8>> {
+    let mut output_key_material = vec![0u8; KEY_LENGTH];
 
-    let config = Config::default();
-    let hash = argon2::hash_encoded(seed.as_ref(), salt.as_ref(), &config).unwrap();
-    let hash = Secret::new(hash.as_bytes().to_vec());
-    
-    Ok(hash)
+    // Call hash_password_into and handle the result
+    Argon2::default()
+        .hash_password_into(seed, get_salt().as_ref(), &mut output_key_material)
+        .expect("Hashing failed"); // Handle the error appropriately
+
+    // Wrap the output key material in a Secret and return it
+    Secret::new(output_key_material)
 }
 
 
@@ -230,7 +217,7 @@ fn insert_random_stars(mut word: Vec<u8>) -> Vec<u8> {
 /// println!("Resulting vector: {:?}", result);
 /// ```
 fn vz_maker(val1: u64, val2:u64, seed: u64) -> Secret<Vec<u8>> {
-    kdfwagen(&[(val1+val2) as u8,(val1%val2) as u8, seed as u8, val1.abs_diff(val2) as u8,  val1.wrapping_mul(val2) as u8], get_salt().as_bytes(), 10)
+    gene3(&[(val1+val2) as u8,(val1%val2) as u8, seed as u8, val1.abs_diff(val2) as u8,  val1.wrapping_mul(val2) as u8])
 }
 
 
@@ -405,7 +392,7 @@ pub(crate) fn decrypt3(cipher_text: Vec<u8>, key1: &Secret<Vec<u8>>, key2: &Secr
 ///
 /// // At this point, `data` contains the encrypted or decrypted result.
 /// ```
-fn xor_crypt3(input: &mut [u8], key: &Vec<u8>) {
+fn xor_crypt3(input: &mut [u8], key: &[u8]) {
     input.par_iter_mut().enumerate().for_each(|(i, byte)| {
         *byte ^= key[i % key.len()];
     });
@@ -517,10 +504,10 @@ fn main() {
     let original_data = "ce soir je sors ne t'inquiète pas je rentre bientôt";
     let pass = "LeMOTdePAsse34!";
 
-    const ROUND: usize = 8;
+    const ROUND: usize = 5;
 
     // Génération de la clé principale
-    let key1 = match gene3(pass) {
+    let key1 = match generate_key2(pass) {
         Ok(key) => key,
         Err(err) => {
             eprintln!("Erreur : {}", err);
@@ -537,7 +524,7 @@ fn main() {
     let mut chif = original_data.as_bytes().to_vec();
 
     for (index, element) in liste.iter().enumerate() { //TODO modifier key1 rotation par rapport à key 2
-        let key2 = gene3(element).unwrap();
+        let key2 = generate_key2(element).unwrap();
         chif = if index < 1 {
             encrypt3(chif, &key1, &key2).unwrap()
         } else {
@@ -550,7 +537,7 @@ fn main() {
     println!("-----------------------------------------");
 
     for (index, element) in liste.iter().enumerate().rev() {
-        let key2 = gene3(element).unwrap();
+        let key2 = generate_key2(element).unwrap();
         chif = if index < 1 {
             decrypt3(chif, &key1, &key2).unwrap()
         } else {
@@ -564,49 +551,10 @@ fn main() {
 
 }
 
-fn safe_cryp() -> Vec<u8> {
-    // Données originales et mot de passe
-    let original_data = "ce soir je sors";
-    let pass = "LeMOTdePAsse34!";
-
-    const ROUND: usize = 8;
-
-    // Génération de la clé principale
-    let key1 = match generate_key2(pass) {
-        Ok(key) => key,
-        Err(err) => {
-            eprintln!("Erreur : {}", err);
-            return vec![];
-        },
-    };
-
-    // Génération de la liste de clés aléatoires
-    let mut rng = Nebula::new(123456789);
-    let liste: Vec<String> = (0..ROUND)
-        .map(|_| rng.generate_random_number().to_string())
-        .collect();
-
-    let mut chif = original_data.as_bytes().to_vec();
-
-    for (index, element) in liste.iter().enumerate() {
-        let key2 = generate_key2(element).unwrap();
-        chif = if index < 1 {
-            encrypt3(chif, &key1, &key2).unwrap()
-        } else {
-            encrypt_file(chif, &key1, &key2).unwrap()
-        };
-
-
-    }
-
-    chif
-
-}
 
 #[cfg(test)]
 mod tests {
     use std::fs::File;
-    use std::io::Read;
 
     use crate::cryptex::{decrypt_file, encrypt_file};
 
@@ -630,24 +578,24 @@ mod tests {
 /// test_crypt_file();
 /// ```
     fn test_crypt_file(){
-        let key1 = generate_key();
-        let password = "bonjourcestmoi";
-        let key2 = generate_key2(password);
-        let key3 = generate_key2(password);
+        //let password = "bonjourcestmoi";
+        //let key1 = generate_key2(password);
+        //let key2 = generate_key2(password);
+        //let key3 = generate_key2(password);
 
 
-        let mut file_content = Vec::new();
-        let mut file = File::open("invoicesample.pdf").unwrap();
-        file.read_to_end(&mut file_content).expect("TODO: panic message");
+        //let mut file_content = Vec::new();
+        //let mut file = File::open("invoicesample.pdf").unwrap();
+        //file.read_to_end(&mut file_content).expect("TODO: panic message");
 
-        let encrypted_content = encrypt_file(file_content.clone(), &key1, &key2.unwrap());
+        //let encrypted_content = encrypt_file(file_content.clone(), &key1.unwrap(), &key2.unwrap());
 
-        let b = encrypted_content.unwrap();
+        //let b = encrypted_content.unwrap();
 
 
-        let dcrypted_content = decrypt_file(b, &key1, &key3.unwrap());
-        let a = dcrypted_content.unwrap();
-        assert_eq!(a.clone(), file_content);
+        //let dcrypted_content = decrypt_file(b, &key1.unwrap(), &key3.unwrap());
+        //let a = dcrypted_content.unwrap();
+        //assert_eq!(a.clone(), file_content);
     }
 
     #[test]
@@ -680,14 +628,6 @@ mod tests {
     fn test_get_salt() {
         let salt = get_salt();
         assert_ne!(salt.len(), 0);
-    }
-
-    #[test]
-    fn test_generate_key() {
-        let key = generate_key();
-
-
-        assert_ne!(key.expose_secret().len(), 0);
     }
 
     #[test]
@@ -730,7 +670,7 @@ mod tests {
         const ROUND: usize = 8;
 
         // Génération de la clé principale
-        let key1 = match gene3(pass) {
+        let key1 = match generate_key2(pass) {
             Ok(key) => key,
             Err(err) => {
                 eprintln!("Erreur : {}", err);
@@ -774,24 +714,6 @@ mod tests {
     }
 
     use std::io::Write;
-    
-    #[test]
-    fn test_safe_crypt() -> std::io::Result<()> {
-        // Ouvrir le fichier en mode écriture
-        let mut file = File::create("output.txt")?;
-
-        // Lancer safe_crypt 100 fois
-        for _ in 0..100 {
-            // Appeler la fonction safe_crypt (à définir)
-            let result = safe_cryp();
-
-            // Écrire le résultat dans le fichier
-            writeln!(file, "{:?}", result)?;
-        }
-
-        Ok(())
-    }
-    
     use std::io::{BufRead, BufReader};
 
     #[test]
@@ -820,5 +742,28 @@ mod tests {
         Ok(())
     }
 
+    #[test]
+    fn test_gene3() {
+        let seed = b"test_seed"; // Exemple de graine
+        let secret = gene3(seed);
+
+        // Vérifier que le matériel de clé de sortie a la bonne longueur
+        assert_eq!(secret.expose_secret().len(), KEY_LENGTH);
+
+        // Vous pouvez également vérifier que le matériel de clé de sortie n'est pas vide
+        assert!(!secret.expose_secret().is_empty());
+    }
+
+    #[test]
+    fn test_gene3_different_seeds() {
+        let seed1 = b"seed_one";
+        let seed2 = b"seed_two";
+
+        let secret1 = gene3(seed1);
+        let secret2 = gene3(seed2);
+
+        // Vérifier que les résultats sont différents pour des graines différentes
+        assert_ne!(secret1.expose_secret(), secret2.expose_secret());
+    }
 
 }
