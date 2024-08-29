@@ -6,7 +6,7 @@ use blake3::Hasher;
 use rayon::iter::ParallelIterator;
 use rayon::prelude::{IntoParallelIterator, IntoParallelRefIterator};
 use secrecy::ExposeSecret;
-use sysinfo::{Networks, Pid, System};
+use sysinfo::{Networks, Pid, ProcessesToUpdate, System};
 
 use crate::kdfwagen::kdfwagen;
 use crate::systemtrayerror::SystemTrayError;
@@ -390,7 +390,7 @@ fn data_computer() -> Result<[u128; 10], SystemTrayError> {
     sys.refresh_memory();
 
     let mut s = System::new();
-    s.refresh_processes();
+    s.refresh_processes(ProcessesToUpdate::All);
 
     let total_memory = sys.total_memory();
     let used_memory = sys.used_memory();
