@@ -504,7 +504,7 @@ fn main() {
     let original_data = "ce soir je sors ne t'inquiète pas je rentre bientôt";
     let pass = "LeMOTdePAsse34!";
 
-    const ROUND: usize = 5;
+    const ROUND: usize = 6;
 
     // Génération de la clé principale
     let key1 = match generate_key2(pass) {
