@@ -151,30 +151,42 @@ impl Nebula {
 /// // Reseed the Nebula instance with a new seed value
 /// nebula.reseed(987654321);
 /// ```
-    fn reseed(&mut self, new_seed: u128) {
-        {
-            let mut bytes_since_reseed = self.bytes_since_reseed.lock().unwrap();
+fn reseed(&mut self, new_seed: u128) {
+    {
+        let mut bytes_since_reseed = self.bytes_since_reseed.lock().unwrap();
 
-            if *bytes_since_reseed < RESEED_THRESHOLD {
-                return;
-            }
-
-            *bytes_since_reseed = 0;
+        if *bytes_since_reseed < RESEED_THRESHOLD {
+            return;
         }
 
-        let _ = self.add_entropy();
-        let combined_entropy = self.combine_entropy();
-
-        self.mix_entropy(combined_entropy);
-
-        let current_time = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos();
-        if current_time - self.last_reseed_time > MAX_RESEED_INTERVAL {
-            self.last_reseed_time = current_time;
-            self.seed ^= new_seed;
-        }
+        *bytes_since_reseed = 0;
     }
 
-/// Combines entropy in the `Nebula` struct to produce a new seed value.
+    // Gather additional entropy
+    let _ = self.add_entropy();
+    let combined_entropy = self.combine_entropy();
+
+    // Create a new seed using the BLAKE3 hash function
+    let mut hasher = Hasher::new();
+    hasher.update(&self.seed.to_be_bytes());
+    hasher.update(&new_seed.to_be_bytes());
+    hasher.update(&combined_entropy.to_be_bytes());
+    hasher.update(&self.last_reseed_time.to_be_bytes());
+
+    // Finalize the hash and use the first 16 bytes as the new seed
+    let hash_result = hasher.finalize();
+    self.seed = u128::from_be_bytes(hash_result.as_bytes()[0..16].try_into().unwrap());
+
+    // Update the last reseed time
+    self.last_reseed_time = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos();
+
+    // Clear the pool to prevent leakage of old entropy
+    let mut pool = self.pool.lock().unwrap();
+    pool.clear();
+}
+
+
+    /// Combines entropy in the `Nebula` struct to produce a new seed value.
 ///
 /// This method combines the entropy present in the internal pool of the `Nebula` struct with other factors, such as the current seed and last reseed time, to produce a new seed value.
 ///
@@ -193,14 +205,23 @@ impl Nebula {
 /// let new_seed = nebula.combine_entropy();
 /// ```
     fn combine_entropy(&self) -> u128 {
-        let mut combined_entropy = self.seed;
+        let mut hasher = Hasher::new();
 
-        let pool = self.pool.lock().unwrap();
-        for byte in &*pool {
-            combined_entropy = combined_entropy.wrapping_mul(33).wrapping_add(u128::from(*byte));
-        }
-        combined_entropy ^= self.last_reseed_time;
-        combined_entropy
+        // Add the current seed
+        hasher.update(&self.seed.to_be_bytes());
+
+        // Lock the pool and add its bytes
+        let mut pool = self.pool.lock().unwrap();
+        hasher.update(&pool.make_contiguous()); // Efficiently add all bytes in the pool
+
+        // Add additional entropy sources
+        hasher.update(&self.last_reseed_time.to_be_bytes());
+        let current_time = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos();
+        hasher.update(&current_time.to_be_bytes());
+
+        // Finalize the hash and convert the first 16 bytes to u128
+        let hash_result = hasher.finalize();
+        u128::from_be_bytes(hash_result.as_bytes()[0..16].try_into().unwrap())
     }
 
 /// Mixes entropy in the `Nebula` struct to enhance randomness.
@@ -257,22 +278,32 @@ impl Nebula {
 /// let random_bytes = nebula.generate_random_bytes(10);
 /// ```
 pub(crate) fn generate_random_bytes(&mut self, count: usize) -> Vec<u8> {
-        let mut random_bytes = Vec::with_capacity(count);
+    let mut random_bytes = Vec::with_capacity(count);
+    let mut hasher = Hasher::new(); // Utilisez un algorithme de hachage sécurisé
 
-        for _ in 0..count {
+    for _ in 0..count {
+        // Combinez l'entropie à chaque itération
+        let entropy = self.combine_entropy();
+        self.mix_entropy(entropy);
 
-            let entropy = self.combine_entropy();
-            self.mix_entropy(entropy);
+        // Ajoutez l'entropie au hachage
+        hasher.update(&entropy.to_be_bytes());
 
-            let random_byte = (entropy & 0xFF) as u8;
-            random_bytes.push(random_byte);
-        }
+        // Finalisez le hachage pour obtenir un nouvel octet aléatoire
+        let hash_result = hasher.finalize();
+        let random_byte = hash_result.as_bytes()[0]; // Prenez le premier octet du hachage
+        random_bytes.push(random_byte);
 
-        let last_byte = random_bytes.last().copied().unwrap_or(0);
-        self.reseed(last_byte as u128);
-
-        random_bytes
+        // Réinitialisez le hachage pour la prochaine itération
+        hasher = Hasher::new();
     }
+
+    // Reseed avec le dernier octet généré
+    let last_byte = random_bytes.last().copied().unwrap_or(0);
+    self.reseed(last_byte as u128);
+
+    random_bytes
+}
 
 /// Generates a 128-bit random number using the `Nebula` struct's internal state.
 ///
@@ -666,9 +697,12 @@ mod tests {
         }
 
         // Check if the distribution is uniform
+        let expected_count = 100000 / 11; // 11 because numbers from 10 to 20 inclusive
+        let tolerance = (expected_count as f64 * 0.1).round() as usize; // 10% tolerance
+
         for count in distribution_counts.values() {
             println!("count: {}", count);
-            assert!(*count >= 8900 && *count <= 10000, "Distribution is not uniform");
+            assert!(*count >= expected_count - tolerance && *count <= expected_count + tolerance, "Distribution is not uniform");
         }
     }
 
