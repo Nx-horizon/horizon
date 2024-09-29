@@ -174,22 +174,28 @@ fn gene3(seed: &[u8]) -> Secret<Vec<u8>> {
 fn insert_random_stars(mut word: Vec<u8>) -> Vec<u8> {
     let rng = Arc::new(Mutex::new(Nebula::new(secured_seed())));
 
-    let num_stars: usize = rng.lock().unwrap().generate_bounded_number((word.len()/2) as u128, word.len() as u128).unwrap() as usize;
+    // Générer le nombre de bits nuls à insérer
+    let num_null_bits: usize = {
+        let mut rng = rng.lock().unwrap();
+        rng.generate_bounded_number((word.len() / 2) as u128, word.len() as u128).unwrap() as usize
+    };
 
-    let mut stars: Vec<u8> = vec![0; num_stars];
-
-    let random_indices: Vec<usize> = (0..num_stars).into_par_iter()
+    // Générer tous les indices aléatoires en une seule opération
+    let random_indices: Vec<usize> = (0..num_null_bits)
+        .into_par_iter()
         .map(|_| {
             let mut rng = rng.lock().unwrap();
             rng.generate_bounded_number(0, word.len() as u128).unwrap() as usize
         })
         .collect();
 
+    // Trier les indices en ordre décroissant pour éviter de décaler les indices
     let mut sorted_indices = random_indices;
     sorted_indices.par_sort_unstable_by(|a, b| b.cmp(a));
 
+    // Insérer les bits nuls directement
     for index in sorted_indices {
-        word.insert(index, stars.pop().unwrap());
+        word.insert(index, 0); // Insérer le bit 0 (0x00)
     }
 
     word
@@ -247,6 +253,7 @@ fn vz_maker(val1: u64, val2:u64, seed: u64) -> Secret<Vec<u8>> {
 ///     Err(err) => eprintln!("Error: {}", err),
 /// }
 /// ```
+
 pub(crate) fn encrypt3(plain_text: Vec<u8>, key1: &Secret<Vec<u8>>, key2: &Secret<Vec<u8>>) -> Result<Vec<u8>, Box<dyn Error>> {
     let inter = insert_random_stars(plain_text);
 
@@ -255,30 +262,34 @@ pub(crate) fn encrypt3(plain_text: Vec<u8>, key1: &Secret<Vec<u8>>, key2: &Secre
 
     let val1 = addition_chiffres(key2);
     let val2 = addition_chiffres(key1);
-
-    let mut characters: Vec<u8> = (0..=255).collect();
     let seed = val2 * val1;
-    let table = table3(256, seed);
 
+    // Préparation de la table de caractères
+    let mut characters: Vec<u8> = (0..=255).collect();
+    let table = table3(256, seed);
     seeded_shuffle(&mut characters, seed as usize);
 
-    let char_positions: HashMap<_, _> = characters.par_iter().enumerate().map(|(i, &c)| (c, i)).collect();
+    // Création d'un HashMap pour les positions des caractères sans utiliser enumerate
+    let char_positions: HashMap<u8, usize> = (0..characters.len())
+        .into_par_iter()
+        .map(|i| (characters[i], i))
+        .collect();
 
-    let table_len = 256;
-    let key1_chars: Vec<usize> = key1.into_par_iter().map(|&c| c as usize % 256).collect();
-    let key2_chars: Vec<usize> = key2.into_par_iter().map(|&c| c as usize % 256).collect();
+    let key1_chars: Vec<usize> = key1.par_iter().map(|&c| c as usize % 256).collect();
+    let key2_chars: Vec<usize> = key2.par_iter().map(|&c| c as usize % 256).collect();
     let key1_len = KEY_LENGTH;
     let key2_len = KEY_LENGTH;
 
-    let mut cipher_text: Vec<_> = inter
-        .par_iter()
-        .enumerate()
-        .filter_map(|(i, c)| {
-            let table_2d = key1_chars[i % key1_len] % table_len;
-            let row = key2_chars[i % key2_len] % table_len;
+    // Pré-allocation du vecteur de texte chiffré
+    let mut cipher_text: Vec<u8> = (0..inter.len())
+        .into_par_iter()
+        .filter_map(|i| {
+            let c = inter[i];
+            let table_2d = key1_chars[i % key1_len] % 256;
+            let row = key2_chars[i % key2_len] % 256;
 
-            if let Some(col) = char_positions.get(c).map(|&col| col % 256) {
-                if table_2d < table_len && row < table[table_2d].len() && col < table[table_2d][row].len() {
+            if let Some(&col) = char_positions.get(&c) {
+                if table_2d < table.len() && row < table[table_2d].len() {
                     Some(table[table_2d][row][col])
                 } else {
                     println!("Character '{}' not found in character set", c);
@@ -290,11 +301,12 @@ pub(crate) fn encrypt3(plain_text: Vec<u8>, key1: &Secret<Vec<u8>>, key2: &Secre
         })
         .collect();
 
+    // Appliquer le XOR avec la clé
     let mut key_clone = key1.clone();
     key_clone.rotate_left(seed as usize % 64);
     xor_crypt3(&mut cipher_text, &key_clone);
-    let vz = vz_maker(val1, val2, seed);
 
+    let vz = vz_maker(val1, val2, seed);
     Ok(shift_bits(cipher_text, vz))
 }
 
@@ -325,55 +337,59 @@ pub(crate) fn encrypt3(plain_text: Vec<u8>, key1: &Secret<Vec<u8>>, key2: &Secre
 /// }
 /// ```
 pub(crate) fn decrypt3(cipher_text: Vec<u8>, key1: &Secret<Vec<u8>>, key2: &Secret<Vec<u8>>) -> Result<Vec<u8>, Box<dyn Error>> {
-
     let key1 = key1.expose_secret();
     let key2 = key2.expose_secret();
 
     let val1 = addition_chiffres(key2);
     let val2 = addition_chiffres(key1);
-
-    let seed = val2 * val1 ;
+    let seed = val2 * val1;
 
     let mut characters: Vec<u8> = (0..=255).collect();
     seeded_shuffle(&mut characters, seed as usize);
 
     let table = table3(256, seed);
-
     let table_len = 256;
 
     let vz = vz_maker(val1, val2, seed);
     let mut cipher_text = unshift_bits(cipher_text, vz);
 
+    // Appliquer le XOR avec la clé
     let mut key_clone = key1.clone();
     key_clone.rotate_left(seed as usize % 64);
     xor_crypt3(&mut cipher_text, &key_clone);
 
-    let key1_chars: Vec<usize> = key1.into_par_iter().map(|&c| c as usize % 256).collect();
-    let key2_chars: Vec<usize> = key2.into_par_iter().map(|&c| c as usize % 256).collect();
+    let key1_chars: Vec<usize> = key1.par_iter().map(|&c| c as usize % 256).collect();
+    let key2_chars: Vec<usize> = key2.par_iter().map(|&c| c as usize % 256).collect();
     let key1_len = KEY_LENGTH;
     let key2_len = KEY_LENGTH;
 
-    let plain_text: Vec<_> = cipher_text.par_iter().enumerate().filter_map(|(i, c)| {
-        let table_2d = key1_chars[i % key1_len] % table_len;
-        let row = key2_chars[i % key2_len] % table_len;
+    // Pré-allocation du vecteur de texte en clair
+    let plain_text: Vec<u8> = (0..cipher_text.len())
+        .into_par_iter()
+        .filter_map(|i| {
+            let c = cipher_text[i];
+            let table_2d = key1_chars[i % key1_len] % table_len;
+            let row = key2_chars[i % key2_len] % table_len;
 
-        if table_2d < table_len && row < table[table_2d].len() {
-            if let Some(col) = table[table_2d][row].iter().position(|x| x == c) {
-                if characters[col] != 0 {
-                    Some(characters[col])
+            if table_2d < table_len && row < table[table_2d].len() {
+                if let Some(col) = table[table_2d][row].iter().position(|&x| x == c) {
+                    if characters[col] != 0 {
+                        Some(characters[col])
+                    } else {
+                        None
+                    }
                 } else {
                     None
                 }
             } else {
                 None
             }
-        } else {
-            None
-        }
-    }).collect();
+        })
+        .collect();
 
     Ok(plain_text)
 }
+
 
 /// Performs XOR encryption/decryption on a byte slice using a key.
 ///
@@ -503,12 +519,9 @@ fn main() {
     // Données originales et mot de passe
     let original_data = "ce soir je sors ne t'inquiète pas je rentre bientôt";
     let pass = "LeMOTdePAsse34!";
-
     const ROUND: usize = 6;
 
-
     let key1 = gene3(pass.as_bytes());
-
 
     // Génération de la liste de clés aléatoires
     let mut rng = Nebula::new(123456789);
@@ -518,33 +531,33 @@ fn main() {
 
     let mut chif = original_data.as_bytes().to_vec();
 
-    for (index, element) in liste.iter().enumerate() { //TODO modifier key1 rotation par rapport à key 2
+    // Chiffrement
+    for (index, element) in liste.iter().enumerate() {
         let key2 = gene3(element.as_bytes());
-        chif = if index < 1 {
+        chif = if index == 0 {
             encrypt3(chif, &key1, &key2).unwrap()
         } else {
             encrypt_file(chif, &key1, &key2).unwrap()
         };
-
-        println!(" {} Chiffré : {}",index, String::from_utf8_lossy(&chif));
+        println!(" {} Chiffré : {}", index, String::from_utf8_lossy(&chif));
     }
 
     println!("-----------------------------------------");
 
+    // Déchiffrement
     for (index, element) in liste.iter().enumerate().rev() {
         let key2 = gene3(element.as_bytes());
-        chif = if index < 1 {
+        chif = if index == 0 {
             decrypt3(chif, &key1, &key2).unwrap()
         } else {
             decrypt_file(chif, &key1, &key2).unwrap()
         };
-
-        println!("{} déChiffré : {}",index, String::from_utf8_lossy(&chif));
+        println!("{} déChiffré : {}", index, String::from_utf8_lossy(&chif));
     }
 
     assert_eq!(original_data, String::from_utf8_lossy(&chif));
-
 }
+
 
 
 #[cfg(test)]
