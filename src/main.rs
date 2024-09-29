@@ -506,14 +506,9 @@ fn main() {
 
     const ROUND: usize = 6;
 
-    // Génération de la clé principale
-    let key1 = match generate_key2(pass) {
-        Ok(key) => key,
-        Err(err) => {
-            eprintln!("Erreur : {}", err);
-            return;
-        },
-    };
+
+    let key1 = gene3(pass.as_bytes());
+
 
     // Génération de la liste de clés aléatoires
     let mut rng = Nebula::new(123456789);
@@ -524,7 +519,7 @@ fn main() {
     let mut chif = original_data.as_bytes().to_vec();
 
     for (index, element) in liste.iter().enumerate() { //TODO modifier key1 rotation par rapport à key 2
-        let key2 = generate_key2(element).unwrap();
+        let key2 = gene3(element.as_bytes());
         chif = if index < 1 {
             encrypt3(chif, &key1, &key2).unwrap()
         } else {
@@ -537,7 +532,7 @@ fn main() {
     println!("-----------------------------------------");
 
     for (index, element) in liste.iter().enumerate().rev() {
-        let key2 = generate_key2(element).unwrap();
+        let key2 = gene3(element.as_bytes());
         chif = if index < 1 {
             decrypt3(chif, &key1, &key2).unwrap()
         } else {

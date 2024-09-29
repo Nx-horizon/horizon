@@ -82,7 +82,7 @@ impl Nebula {
             pool.pop_front();
         }
 
-        let mut entropy_sources = data_computer().unwrap();
+        let mut entropy_sources = data_computer()?;
         self.shuffle_array(&mut entropy_sources);
         for source in &entropy_sources {
             let entropy_bytes = source.to_be_bytes();
