@@ -1,14 +1,15 @@
 use std::error::Error;
-use std::sync::{Arc, Mutex};
 use argon2::Argon2;
 
 use hashbrown::HashMap;
+use rand::rngs::StdRng;
+use rand::{Rng, SeedableRng};
+use rand::seq::SliceRandom;
 use rayon::prelude::*;
 use secrecy::{ExposeSecret, Secret};
 use sysinfo::System;
 
 use crate::cryptex::{decrypt_file, encrypt_file};
-use crate::nebula::{Nebula, secured_seed, seeded_shuffle};
 use crate::systemtrayerror::SystemTrayError;
 
 mod systemtrayerror;
@@ -60,6 +61,13 @@ fn table3(size: usize, seed: u64) -> Vec<Vec<Vec<u8>>> {
             }).flatten().collect::<Vec<Vec<u8>>>()
         }).collect::<Vec<Vec<Vec<u8>>>>()
     }).flatten().collect::<Vec<Vec<Vec<u8>>>>()
+}
+
+fn seeded_shuffle<T>(items: &mut [T], seed: usize) {
+
+    let mut rng = StdRng::seed_from_u64(seed as u64);
+
+    items.shuffle(&mut rng);
 }
 
 
@@ -172,20 +180,20 @@ fn gene3(seed: &[u8]) -> Secret<Vec<u8>> {
 /// println!("Word with stars: {:?}", word_with_stars);
 /// ```
 fn insert_random_stars(mut word: Vec<u8>) -> Vec<u8> {
-    let rng = Arc::new(Mutex::new(Nebula::new(secured_seed())));
-
-    // Générer le nombre de bits nuls à insérer
+    // Générer un nombre aléatoire entre word.len() / 2 et word.len()
     let num_null_bits: usize = {
-        let mut rng = rng.lock().unwrap();
-        rng.generate_bounded_number((word.len() / 2) as u128, word.len() as u128).unwrap() as usize
+        let mut rng = rand::thread_rng();
+        let lower_bound = (word.len() / 2) as u128;
+        let upper_bound = word.len() as u128;
+        rng.gen_range(lower_bound..upper_bound) as usize
     };
 
     // Générer tous les indices aléatoires en une seule opération
     let random_indices: Vec<usize> = (0..num_null_bits)
         .into_par_iter()
         .map(|_| {
-            let mut rng = rng.lock().unwrap();
-            rng.generate_bounded_number(0, word.len() as u128).unwrap() as usize
+            let mut rng = rand::thread_rng(); // Créer une nouvelle instance de ThreadRng
+            rng.gen_range(0..word.len()) // Utilisation de gen_range
         })
         .collect();
 
@@ -200,6 +208,7 @@ fn insert_random_stars(mut word: Vec<u8>) -> Vec<u8> {
 
     word
 }
+
 
 /// Creates a vector based on arithmetic operations and a seed.
 ///
@@ -524,9 +533,9 @@ fn main() {
     let key1 = gene3(pass.as_bytes());
 
     // Génération de la liste de clés aléatoires
-    let mut rng = Nebula::new(123456789);
+    let mut rng = rand::thread_rng();
     let liste: Vec<String> = (0..ROUND)
-        .map(|_| rng.generate_random_number().to_string())
+        .map(|_| rng.gen::<u64>().to_string()) // Générer un nombre aléatoire de type u64
         .collect();
 
     let mut chif = original_data.as_bytes().to_vec();
@@ -687,9 +696,9 @@ mod tests {
         };
 
         // Génération de la liste de clés aléatoires
-        let mut rng = Nebula::new(123456789);
+        let mut rng = rand::thread_rng();
         let liste: Vec<String> = (0..ROUND)
-            .map(|_| rng.generate_random_number().to_string())
+            .map(|_| rng.gen::<u64>().to_string()) // Générer un nombre aléatoire de type u64
             .collect();
 
         let mut chif = original_data.as_bytes().to_vec();
